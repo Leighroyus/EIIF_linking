@@ -199,8 +199,7 @@ paths:
   input_b_raw_csv: "..."
 
 thresholds:
-  total_weight_accept_new: 31
-  total_weight_accept_existing: 35
+  total_weight_min: 20.0
   jw_first_name_min: 0.75
   last_name_uniqueness_threshold: 10
   fuzzy_name_min: 0.85

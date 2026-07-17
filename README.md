@@ -116,8 +116,7 @@ paths:
   input_b_raw_csv: "data/current.csv"
 
 thresholds:
-  total_weight_accept_new: 31
-  total_weight_accept_existing: 35
+  total_weight_min: 20.0
   jw_first_name_min: 0.75
   last_name_uniqueness_threshold: 10
   fuzzy_name_min: 0.85
@@ -207,8 +206,8 @@ Deterministic identifier combining phonetic name encoding, DOB, and gender (heal
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| total_weight_accept_new | 31 | Min log-odds for new/new matches |
-| total_weight_accept_existing | 35 | Min log-odds for new/existing matches |
+| total_weight_min | 31 | Minimum total weight to accept a match |
+| total_weight_min | 35 |  |
 | jw_first_name_min | 0.75 | Quality gate for first name |
 | last_name_uniqueness_threshold | 10 | Rarity filter for surnames |
 | fuzzy_name_min | 0.85 | Min string similarity for names |
@@ -217,7 +216,7 @@ Deterministic identifier combining phonetic name encoding, DOB, and gender (heal
 ## Troubleshooting
 
 ### No matches found
-- Increase `total_weight_accept_*` thresholds
+- Increase `total_weight_min` thresholds
 - Check data quality (names, DOBs)
 - Verify datasets actually overlap
 

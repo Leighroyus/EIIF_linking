@@ -83,8 +83,7 @@ paths:
   input_b_raw_csv: "data/current.csv"
 
 thresholds:
-  total_weight_accept_new: 31
-  total_weight_accept_existing: 35
+  total_weight_min: 20.0
   jw_first_name_min: 0.75
   last_name_uniqueness_threshold: 10
   fuzzy_name_min: 0.85
@@ -271,12 +270,12 @@ def test_pipeline_execution(config_file: Path) -> None:
 
 ## Configuration Thresholds
 
-### total_weight_accept_new (default: 31)
+### total_weight_min (default: 31)
 - Minimum log-odds weight to accept new/new match
 - Lower = more liberal matching
 - Range: ~0-100
 
-### total_weight_accept_existing (default: 35)
+### total_weight_min (default: 35)
 - Minimum weight for new/existing matches
 - Typically higher than new/new (more conservative)
 
@@ -342,7 +341,7 @@ Fuzzy filter applied to all: Jaro-Winkler ≥ 0.85 + Levenshtein ≥ 0.85
 
 ### No matches found
 - **Check**: Are thresholds too high?
-- **Try**: Reduce `total_weight_accept_new` or `total_weight_accept_existing`
+- **Try**: Reduce `total_weight_min` or `total_weight_min`
 - **Check**: Do names/DOBs have data quality issues?
 
 ### Too many false positives

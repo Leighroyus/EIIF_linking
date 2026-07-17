@@ -229,7 +229,7 @@ thresholds:
 
 ```yaml
 thresholds:
-  total_weight_accept_new: 28
+  total_weight_min: 20.0
   fuzzy_name_min: 0.80
 ```
 

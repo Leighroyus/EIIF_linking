@@ -129,8 +129,8 @@
 - Extensible structure
 
 ✅ **Configurable Thresholds**
-- total_weight_accept_new (default: 31)
-- total_weight_accept_existing (default: 35)
+- total_weight_min (default: 31)
+- total_weight_min (default: 35)
 - jw_first_name_min (default: 0.75)
 - last_name_uniqueness_threshold (default: 10)
 - fuzzy_name_min (default: 0.85)

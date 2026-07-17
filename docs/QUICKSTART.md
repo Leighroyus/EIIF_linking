@@ -65,8 +65,7 @@ paths:
   input_b_raw_csv: "data/input_b.csv"
 
 thresholds:
-  total_weight_accept_new: 31
-  total_weight_accept_existing: 35
+  total_weight_min: 20.0
   jw_first_name_min: 0.75
   last_name_uniqueness_threshold: 10
   fuzzy_name_min: 0.85
@@ -186,8 +185,7 @@ The system will generate unique IDs deterministically from these columns.
 Increase thresholds in config:
 ```yaml
 thresholds:
-  total_weight_accept_new: 35  # Increase from 31
-  total_weight_accept_existing: 37  # Increase from 35
+  total_weight_min: 20.0  # Increase from 31
 ```
 
 ### Not finding enough matches?
@@ -195,7 +193,7 @@ thresholds:
 Decrease thresholds:
 ```yaml
 thresholds:
-  total_weight_accept_new: 25  # Decrease from 31
+  total_weight_min: 20.0  # Decrease from 31
   fuzzy_name_min: 0.80  # Decrease from 0.85
 ```
 
