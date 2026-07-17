@@ -32,6 +32,7 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # Package imports (absolute so they work with or without pip install -e .)
 # ---------------------------------------------------------------------------
+from eii_flinking.duckdb.connection import connect as _duckdb_connect
 from eii_flinking.config import (
     AppConfig,
     BlockingConfig,
@@ -61,6 +62,7 @@ _DEFAULTS: dict[str, Any] = {
     "a_uid_field": None,
     "a_uid_hash_cols": [],
     "a_df_mapped": None,
+    "a_df_normalised": None,
     "b_df": None,
     "b_columns": [],
     "b_filename": None,
@@ -70,6 +72,7 @@ _DEFAULTS: dict[str, Any] = {
     "b_uid_field": None,
     "b_uid_hash_cols": [],
     "b_df_mapped": None,
+    "b_df_normalised": None,
     "total_weight_min": CONFIDENCE_MEDIUM_THRESHOLD,
     "confidence_high": CONFIDENCE_HIGH_THRESHOLD,
     "confidence_medium": CONFIDENCE_MEDIUM_THRESHOLD,
@@ -403,15 +406,26 @@ with tab_run:
                         duckdb=DuckDBConfig(database_path=":memory:"),
                     )
 
+                    # Use a persistent connection so we can read lnk.dataset_a/b
+                    # after the run — those tables have the real computed IDs
+                    # (including hashes) that match results_df["a_id"/"b_id"].
+                    conn = _duckdb_connect(":memory:")
                     results = run_pipeline_from_dataframes(
                         df_a_mapped,
                         df_b_mapped,
                         app_config,
+                        conn=conn,
                         progress=_progress,
                     )
+                    a_normalised = conn.execute("SELECT * FROM lnk.dataset_a").fetch_df()
+                    b_normalised = conn.execute("SELECT * FROM lnk.dataset_b").fetch_df()
+                    conn.close()
+
                     st.session_state["results_df"] = results
                     st.session_state["a_df_mapped"] = df_a_mapped
                     st.session_state["b_df_mapped"] = df_b_mapped
+                    st.session_state["a_df_normalised"] = a_normalised
+                    st.session_state["b_df_normalised"] = b_normalised
                     st.session_state["run_log"] = _run_log
                     status_placeholder.success(f"Complete — {len(results):,} matches found.")
 
@@ -427,10 +441,12 @@ with tab_run:
 
         a_df_mapped: pd.DataFrame | None = st.session_state.get("a_df_mapped")
         b_df_mapped: pd.DataFrame | None = st.session_state.get("b_df_mapped")
+        a_normalised: pd.DataFrame | None = st.session_state.get("a_df_normalised")
+        b_normalised: pd.DataFrame | None = st.session_state.get("b_df_normalised")
 
         # Summary metrics
-        n_a_total = len(a_df_mapped) if a_df_mapped is not None else "—"
-        n_b_total = len(b_df_mapped) if b_df_mapped is not None else "—"
+        n_a_total = len(a_normalised) if a_normalised is not None else "—"
+        n_b_total = len(b_normalised) if b_normalised is not None else "—"
         n_a_matched = results_df["a_id"].nunique()
         n_b_matched = results_df["b_id"].nunique()
 
@@ -488,10 +504,11 @@ with tab_run:
             download_name = "linkage_matched_pairs"
 
         elif view_mode == "All Set A records":
-            if a_df_mapped is None:
+            if a_normalised is None:
                 st.warning("Set A data not available — rerun the pipeline.")
                 display_df = pd.DataFrame()
             else:
+                # Best B match per A record (already computed as is_best_match)
                 best = (
                     results_df[results_df["is_best_match"]]
                     [[
@@ -500,8 +517,9 @@ with tab_run:
                     ]]
                     .copy()
                 )
+                # lnk.dataset_a has the real computed IDs matching results_df["a_id"]
                 a_view = (
-                    a_df_mapped
+                    a_normalised
                     [["id", "first_name", "last_name", "date_of_birth", "gender", "address_suburb"]]
                     .rename(columns={
                         "id": "a_id",
@@ -522,12 +540,11 @@ with tab_run:
                     download_name = "linkage_all_set_a"
 
         else:  # All Set B records
-            if b_df_mapped is None:
+            if b_normalised is None:
                 st.warning("Set B data not available — rerun the pipeline.")
                 display_df = pd.DataFrame()
             else:
-                # is_best_match = best B for each A — not best A for each B.
-                # Recompute: take the highest-scoring A match per B record.
+                # Best A match per B record: sort by weight, one row per b_id
                 best = (
                     results_df
                     .sort_values("total_weight", ascending=False)
@@ -538,8 +555,9 @@ with tab_run:
                     ]]
                     .copy()
                 )
+                # lnk.dataset_b has the real computed IDs matching results_df["b_id"]
                 b_view = (
-                    b_df_mapped
+                    b_normalised
                     [["id", "first_name", "last_name", "date_of_birth", "gender", "address_suburb"]]
                     .rename(columns={
                         "id": "b_id",
