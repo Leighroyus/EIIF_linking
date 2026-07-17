@@ -526,8 +526,12 @@ with tab_run:
                 st.warning("Set B data not available — rerun the pipeline.")
                 display_df = pd.DataFrame()
             else:
+                # is_best_match = best B for each A — not best A for each B.
+                # Recompute: take the highest-scoring A match per B record.
                 best = (
-                    results_df[results_df["is_best_match"]]
+                    results_df
+                    .sort_values("total_weight", ascending=False)
+                    .drop_duplicates(subset=["b_id"])
                     [[
                         "b_id", "a_id", "total_weight", "confidence",
                         "a_first_name", "a_last_name", "a_dob", "a_gender", "a_suburb",
