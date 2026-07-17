@@ -164,11 +164,14 @@ def _render_dataset_tab(prefix: str, label: str) -> None:
         )
         st.session_state[f"{prefix}_uid_field"] = None if uid_field == _NOT_AVAILABLE else uid_field
     else:
+        std_fields_no_id = [f for f in STANDARD_FIELDS if f != "id"]
         uid_hash_cols = st.multiselect(
-            "Source columns to hash together",
-            options=cols,
+            "Standard fields to hash together",
+            options=std_fields_no_id,
+            default=[f for f in ["first_name", "last_name", "date_of_birth"] if f in std_fields_no_id],
+            format_func=lambda f: _DISPLAY_NAMES.get(f, f),
             key=f"{prefix}_uid_hash_sel",
-            help="The selected column values are concatenated and MD5-hashed to form the ID.",
+            help="Select standard pipeline fields (after mapping) to concatenate and hash as the record ID.",
         )
         st.session_state[f"{prefix}_uid_hash_cols"] = uid_hash_cols
 
