@@ -515,7 +515,11 @@ with tab_run:
                 display_df = a_view.merge(best, on="a_id", how="left")
                 display_df.insert(1, "matched", display_df["b_id"].notna())
                 display_df = display_df.sort_values(["matched", "total_weight"], ascending=[False, False])
-            download_name = "linkage_all_set_a"
+                if st.checkbox("Unmatched only", key="unmatched_only_a"):
+                    display_df = display_df[~display_df["matched"]]
+                    download_name = "linkage_unmatched_set_a"
+                else:
+                    download_name = "linkage_all_set_a"
 
         else:  # All Set B records
             if b_df_mapped is None:
@@ -545,7 +549,11 @@ with tab_run:
                 display_df = b_view.merge(best, on="b_id", how="left")
                 display_df.insert(1, "matched", display_df["a_id"].notna())
                 display_df = display_df.sort_values(["matched", "total_weight"], ascending=[False, False])
-            download_name = "linkage_all_set_b"
+                if st.checkbox("Unmatched only", key="unmatched_only_b"):
+                    display_df = display_df[~display_df["matched"]]
+                    download_name = "linkage_unmatched_set_b"
+                else:
+                    download_name = "linkage_all_set_b"
 
         if len(display_df) > 0:
             st.dataframe(display_df, use_container_width=True, height=450)
