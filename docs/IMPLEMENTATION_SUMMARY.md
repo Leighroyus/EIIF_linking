@@ -125,9 +125,13 @@ Config is parsed from YAML into typed dataclasses:
 
 ### `app/main.py`
 - Streamlit GUI with 4 tabs
-- `_render_dataset_tab(prefix, label)` — tab renderer for dataset config
+- `_render_dataset_tab(prefix, label)` — tab renderer for dataset config; uses `st.file_uploader` (CSV/Excel drag-and-drop); auto-detects format from file extension; hash column multiselect uses standard field names (not source column names)
 - Settings tab: sliders for all thresholds
-- Run tab: builds `AppConfig` from `st.session_state`, calls `run_pipeline_from_dataframes`, shows metrics + filterable results table + download buttons
+- Run tab: builds `AppConfig` from `st.session_state`, calls `run_pipeline_from_dataframes` with progress callback; stores `a_df_mapped` and `b_df_mapped` in session state; shows matched/total summary metrics; **View toggle** with three modes:
+  - *Matched pairs*: filterable results table
+  - *All Set A records*: left-join of all A records against best matches, `matched` flag
+  - *All Set B records*: same from B's perspective
+- Download buttons (CSV + Excel) adapt filename to active view
 
 ---
 

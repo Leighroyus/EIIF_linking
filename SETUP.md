@@ -175,13 +175,21 @@ eii-link config/my_linkage.yml --no-export
 
 ### Streamlit GUI
 
-No config file required — configure everything through the UI:
+No config file required — configure everything through the browser:
 
 ```bash
 streamlit run src/eii_flinking/app/main.py
 ```
 
-Four tabs: Dataset A → Dataset B → Linkage Settings → Run & Results. Results can be downloaded as CSV or Excel directly from the browser.
+Four tabs:
+
+- **Dataset A / B**: drag-and-drop or click to upload a CSV or Excel file (`.csv`, `.xlsx`, `.xls`); the file loads automatically on selection. Configure unique ID strategy (named field or hash) and map source columns to standard pipeline fields.
+- **Linkage Settings**: sliders for all match thresholds.
+- **Run & Results**: run the pipeline with live progress, then explore results in three views:
+  - *Matched pairs* — all A→B links above threshold, filterable by confidence and weight
+  - *All Set A records* — every A record with its best B match where one was found; unmatched rows have `matched = False` and empty B columns
+  - *All Set B records* — same from B's perspective
+- Download buttons (CSV and Excel) export whichever view is currently displayed.
 
 ### Python API
 

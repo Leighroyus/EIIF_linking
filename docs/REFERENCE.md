@@ -377,10 +377,16 @@ Both return a `pandas.DataFrame` of `out.linkage_results`.
 streamlit run src/eii_flinking/app/main.py
 ```
 
-Tab 1 — **Dataset A**: file path, source type, preview, unique ID strategy, field mapping  
-Tab 2 — **Dataset B**: same  
-Tab 3 — **Linkage Settings**: sliders for all thresholds  
-Tab 4 — **Run & Results**: runs pipeline with live progress, metrics, filterable table, CSV/Excel download
+Tab 1 — **Dataset A**: drag-and-drop / Browse file uploader (CSV, xlsx, xls); auto-loads on selection; preview; unique ID strategy (named field selector or standard-field hash multiselect); field mapping selectboxes with auto-hint from column names
+
+Tab 2 — **Dataset B**: same as Dataset A
+
+Tab 3 — **Linkage Settings**: sliders for all thresholds (`total_weight_min`, `confidence_high`, `confidence_medium`, `jw_first_name_min`, `jw_last_name_min`, `fuzzy_name_min`); number input for `max_matches_per_a_record`
+
+Tab 4 — **Run & Results**: runs `run_pipeline_from_dataframes()` with live progress; summary metrics showing matched/total counts for each dataset; then a **View** toggle with three modes:
+- *Matched pairs* — all A→B pairs above threshold; filterable by confidence band, best-match-only checkbox, and minimum weight; CSV + Excel download
+- *All Set A records* — every A record left-joined to its best B match; `matched` column flags linked vs unmatched rows; sorted matched-first
+- *All Set B records* — same from B's perspective
 
 ---
 

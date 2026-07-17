@@ -10,7 +10,7 @@ Probabilistic record linkage between two independent extracts (Set A → Set B).
 - **Optional fields** — NULL values contribute 0 weight (no penalty), never disqualify a pair
 - **Probabilistic scoring** — Fellegi-Sunter log-odds model with Jaro-Winkler string similarity
 - **Ranked output** — all pairs above threshold with `match_rank`, `is_best_match`, and confidence band (HIGH/MEDIUM/LOW)
-- **Streamlit GUI** — interactive interface for file loading, field mapping, threshold tuning, and results
+- **Streamlit GUI** — drag-and-drop file loading, field mapping, threshold tuning, matched-pairs results, and full A/B coverage views showing unmatched records
 
 ## Quick Start
 
@@ -187,7 +187,15 @@ results_df = run_pipeline_from_dataframes(df_a, df_b, config)
 streamlit run src/eii_flinking/app/main.py
 ```
 
-Four tabs: Dataset A → Dataset B → Linkage Settings → Run & Results
+Four tabs: **Dataset A** → **Dataset B** → **Linkage Settings** → **Run & Results**
+
+- **Dataset A / B tabs**: drag-and-drop or browse to upload a CSV or Excel file; configure unique ID strategy and field mapping
+- **Linkage Settings**: sliders for all match thresholds
+- **Run & Results**: runs the pipeline with live progress, shows summary metrics (matched/total per dataset), and offers three result views:
+  - *Matched pairs* — all A→B links above threshold, with confidence/weight filters
+  - *All Set A records* — every A record with its best B match where found; unmatched rows flagged
+  - *All Set B records* — same from B's perspective
+- CSV and Excel download buttons adapt to whichever view is active
 
 ## Configuration Thresholds
 

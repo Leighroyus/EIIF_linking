@@ -38,7 +38,7 @@ All core features implemented and documented.
 - [x] `slk.py` — Soundex-like key (SLK-581) generation
 
 **GUI (1 module)**
-- [x] `app/main.py` — Streamlit GUI with 4 tabs
+- [x] `app/main.py` — Streamlit GUI with 4 tabs (file uploader, field mapping, thresholds, run + 3-mode results view)
 
 ### Configuration
 
@@ -102,7 +102,8 @@ All core features implemented and documented.
 ### Interfaces
 - [x] CLI: `eii-link config.yml`
 - [x] Python API: `run_pipeline()`, `run_pipeline_from_dataframes()`
-- [x] Streamlit GUI with interactive configuration, progress, and download
+- [x] Streamlit GUI with drag-and-drop file upload, interactive configuration, live progress, and three result views (matched pairs / all Set A / all Set B)
+- [x] All Set A / All Set B view: shows every record including unmatched, with `matched` flag
 
 ---
 
