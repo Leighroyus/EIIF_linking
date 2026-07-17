@@ -6,9 +6,16 @@ Run with:  streamlit run src/eii_flinking/app/main.py
 """
 
 import io
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# Ensure the src/ directory is on sys.path so absolute imports work whether or
+# not the package has been installed with `pip install -e .`.
+_src = Path(__file__).resolve().parents[3]  # …/EIIFlinking/src
+if str(_src) not in sys.path:
+    sys.path.insert(0, str(_src))
 
 import pandas as pd
 import streamlit as st
@@ -23,9 +30,9 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Inline imports so the app only fails on pages that actually need duckdb etc.
+# Package imports (absolute so they work with or without pip install -e .)
 # ---------------------------------------------------------------------------
-from ..config import (
+from eii_flinking.config import (
     AppConfig,
     BlockingConfig,
     DatasetConfig,
@@ -36,10 +43,10 @@ from ..config import (
     ThresholdConfig,
     UniqueIdConfig,
 )
-from ..connectors.csv_connector import CsvConnector
-from ..connectors.excel_connector import ExcelConnector
-from ..pipeline import run_pipeline_from_dataframes
-from ..schema import STANDARD_FIELDS, CONFIDENCE_HIGH_THRESHOLD, CONFIDENCE_MEDIUM_THRESHOLD
+from eii_flinking.connectors.csv_connector import CsvConnector
+from eii_flinking.connectors.excel_connector import ExcelConnector
+from eii_flinking.pipeline import run_pipeline_from_dataframes
+from eii_flinking.schema import STANDARD_FIELDS, CONFIDENCE_HIGH_THRESHOLD, CONFIDENCE_MEDIUM_THRESHOLD
 
 # ---------------------------------------------------------------------------
 # Session-state defaults
