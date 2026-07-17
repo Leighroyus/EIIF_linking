@@ -1,384 +1,126 @@
-# Justice Data Linkage v2 - Delivery Checklist
+# EIIF Linking — Delivery Checklist
 
-## Project Completion Summary
+## Completion Status: Complete
 
-✅ **All requirements implemented and delivered**
+All core features implemented and documented.
 
-### Deliverables
+---
 
-#### 1. Core System (src/eii_flinking/)
+## Deliverables
 
-**Utilities (3 modules, 250 lines)**
-- ✅ config.py - YAML configuration loading with path resolution
-- ✅ slk.py - Soundex-like key generation
-- ✅ duckdb_connection.py - Database connection management
+### Core Package (`src/eii_flinking/`)
 
-**Pipeline Stages (8 modules, 1,400 lines)**
-- ✅ unique_id_mapping.py (NEW) - Named field or hash-based ID generation
-- ✅ prepare_sources.py - Data loading and normalization with field mapping
-- ✅ new_person_identification.py - New vs existing classification
-- ✅ proportions.py - Field frequency calculations
-- ✅ probabilities.py - Match probability assignment
-- ✅ blocking.py - Candidate pair generation (5 strategies)
-- ✅ scoring.py - Match weight calculation (log-odds model)
-- ✅ post_linkage.py - Filtering, clustering, ID assignment (Union-Find)
+**Schema and configuration (2 modules)**
+- [x] `schema.py` — standard field definitions, required fields, confidence thresholds, default match probabilities
+- [x] `config.py` — YAML → typed dataclass config loading (`AppConfig`, `DatasetConfig`, `ThresholdConfig`, etc.)
 
-**Pipeline Orchestration (2 modules, 230 lines)**
-- ✅ linking_full.py - Main pipeline (load → prepare → match → output)
-- ✅ run_linking.py - CLI entry point
+**Database (1 module)**
+- [x] `duckdb/connection.py` — DuckDB connection with `lnk/wrk/out` schema creation
 
-#### 2. Configuration Templates (3 files)
+**Connectors (5 modules)**
+- [x] `connectors/base.py` — abstract base class; `load_to_duckdb()` and `_apply_mapping()` logic
+- [x] `connectors/csv_connector.py`
+- [x] `connectors/excel_connector.py`
+- [x] `connectors/database_connector.py` (SQLAlchemy-based)
+- [x] `connectors/factory.py` — `get_connector()` and `load_dataset()`
 
-- ✅ linkage_template.yml - Comprehensive template with all options
-- ✅ victoria_police_example.yml - Real-world Victoria Police example
-- ✅ hash_based_example.yml - Hash-based ID example
+**Pipeline stages (5 modules)**
+- [x] `stages/ingest.py` — normalisation, ID resolution
+- [x] `stages/proportions.py` — field frequency / UP calculation
+- [x] `stages/blocking.py` — 4-rule candidate generation with fuzzy gate
+- [x] `stages/scoring.py` — Fellegi-Sunter log-odds scoring
+- [x] `stages/post_linkage.py` — filtering, ranking, output table
 
-#### 3. Testing Framework (4 files, 250 lines)
+**Pipeline orchestration (1 module)**
+- [x] `pipeline.py` — `run_pipeline()`, `run_pipeline_from_dataframes()`, `main()` CLI entry point
 
-- ✅ conftest.py - Pytest fixtures with sample data
-- ✅ test_unique_id_mapping.py - Unit tests for ID mapping
-- ✅ test_full_pipeline.py - Integration tests
-- ✅ Sample test data with 5 reference + 6 new records
+**Utilities (1 module)**
+- [x] `slk.py` — Soundex-like key (SLK-581) generation
 
-#### 4. Documentation (3 files, 1,500+ lines)
+**GUI (1 module)**
+- [x] `app/main.py` — Streamlit GUI with 4 tabs
 
-- ✅ V2_README.md - Comprehensive system documentation
-- ✅ IMPLEMENTATION_SUMMARY.md - What was built
-- ✅ QUICKSTART.md - 5-minute setup guide
+### Configuration
+
+- [x] `config/example_linkage.yml` — fully annotated configuration template
+
+### Documentation
+
+- [x] `README.md` — project overview, features, quick start, output schema, algorithms
+- [x] `SETUP.md` — installation, configuration guide, Python API, troubleshooting
+- [x] `docs/QUICKSTART.md` — 5-minute setup guide
+- [x] `docs/REFERENCE.md` — complete configuration and algorithm reference
+- [x] `docs/IMPLEMENTATION_SUMMARY.md` — architecture and module breakdown
+- [x] `docs/DELIVERY_CHECKLIST.md` — this file
+- [x] `docs/FILE_MANIFEST.md` — complete file listing
 
 ---
 
 ## Feature Checklist
 
+### Input Sources
+- [x] CSV files
+- [x] Excel files (`.xlsx` and `.xls`)
+- [x] Database connections (PostgreSQL, SQLite, MySQL via SQLAlchemy)
+- [x] Mixed sources: Dataset A and B can use different source types
+
 ### Unique ID Handling
-
-✅ **Named Field Strategy**
-- Use existing column as unique ID
-- Validation for duplicates
-- Per-dataset configuration
-
-✅ **Hash-Based Strategy**
-- Deterministic ID generation from multiple columns
-- SHA256 and MD5 algorithms
-- Configurable column selection
+- [x] Named field strategy (use existing ID column)
+- [x] Hash strategy (MD5 or SHA256 from standard field combinations)
+- [x] Per-dataset configuration
 
 ### Field Mapping
+- [x] Config-driven mapping of source columns → standard pipeline fields
+- [x] Unmapped standard fields treated as NULL (absent)
+- [x] Optional fields declared in config — NULL contributes 0 weight, no penalty
 
-✅ **Flexible Column Mapping**
-- Config-driven, not hard-coded
-- Maps any CSV schema to standard fields
-- Supports optional fields
+### Matching
+- [x] Fellegi-Sunter log-odds probabilistic model
+- [x] Jaro-Winkler similarity for name and address fields
+- [x] DOB-specific scoring with interpolation for near-matches
+- [x] Gender exact-match scoring
+- [x] Per-field MP (match probability) configurable via `match_probabilities`
 
-✅ **Configurable Fields**
-- unique_id, first_name, middle_name, surname
-- date_of_birth, gender
-- street_number, street_name, suburb, state
+### Blocking
+- [x] 4 overlapping blocking rules
+- [x] Jaro-Winkler fuzzy gate on all rules
+- [x] Relaxed fuzzy threshold on DOB-anchored rules (surname change tolerance)
+- [x] Alphabet chunking for memory efficiency
 
-### Symmetric Dataset Naming
+### Output
+- [x] All A→B pairs above threshold (not just best match)
+- [x] `match_rank` — rank of each B match for a given A record
+- [x] `is_best_match` — TRUE for `match_rank = 1`
+- [x] `confidence` — HIGH / MEDIUM / LOW band from `total_weight`
+- [x] `total_weight` — raw numeric log-odds score
+- [x] Per-field similarity scores (`sim_*`)
+- [x] Per-field weight contributions (`wgt_*`)
+- [x] Optional cap: `max_matches_per_a_record`
+- [x] Export to CSV
+- [x] Export to Excel
 
-✅ **input_a / input_b Terminology**
-- Replaces temporal current/previous
-- Works for any dataset pair
-- Clear in documentation and output
-
-✅ **Extract Labels**
-- Separate labels for each dataset
-- Tracked in output (DATA_SOURCE column)
-- Supports multiple label schemes
-
-### Probabilistic Matching
-
-✅ **Fellegi-Sunter Model**
-- Field-level agreement probabilities
-- Log-odds weight calculation
-- Configurable threshold acceptance
-
-✅ **Multi-Strategy Blocking**
-- 5 different blocking rules
-- Alphabet chunking (13 chunks)
-- Fuzzy similarity gates (Jaro-Winkler, Levenshtein)
-
-✅ **Address Matching**
-- Street, suburb, state comparison
-- Confidence flagging
-- Separate calculation for new/existing
-
-✅ **Clustering & ID Assignment**
-- Union-Find transitive closure
-- Consolidated cluster IDs
-- Preserves existing IDs when possible
-
-### Output & Standardization
-
-✅ **Final Linkage Table**
-- 14 columns with standardized schema
-- SLK generation (healthcare standard)
-- Confidence scores and match weights
-- Data source tracking
-
-✅ **CSV Export**
-- Optional intermediate table export
-- Main output and diagnostic tables
-- Configurable via YAML
-
-### Configuration System
-
-✅ **YAML-Based Configuration**
-- All parameters in single config file
-- Comments and documentation
-- Extensible structure
-
-✅ **Configurable Thresholds**
-- total_weight_min (default: 31)
-- total_weight_min (default: 35)
-- jw_first_name_min (default: 0.75)
-- last_name_uniqueness_threshold (default: 10)
-- fuzzy_name_min (default: 0.85)
-- fuzzy_birth_dt_min (default: 0.85)
-
-### Testing & Validation
-
-✅ **Unit Tests**
-- Unique ID mapping (named field)
-- Unique ID mapping (hash-based)
-- Hash determinism
-
-✅ **Integration Tests**
-- Full pipeline execution
-- Output schema validation
-- Record count verification
-
-✅ **Sample Data**
-- Fixture-based test data
-- Realistic person records
-- Known match scenarios
-
----
-
-## Architecture Decisions
-
-### Removed from Scope ✅
-- ✅ Splink implementation (149 files)
-- ✅ Supervised learning modules
-- ✅ Deprecated stage wrappers
-- ✅ Multi-implementation coordination
-
-### New Additions ✅
-- ✅ unique_id_mapping.py stage
-- ✅ Hash-based ID generation
-- ✅ Flexible field mapping
-- ✅ input_a/input_b naming
-- ✅ Extract labels system
-- ✅ Comprehensive documentation
-
-### Preserved from v1 ✅
-- ✅ Probabilistic matching algorithms
-- ✅ Blocking strategies
-- ✅ Scoring model
-- ✅ Clustering approach
-- ✅ SLK generation
-- ✅ Address matching
-
----
-
-## File Structure
-
-```
-src/eii_flinking/
-├── __init__.py
-├── config.py (103 lines)
-├── slk.py (124 lines)
-├── duckdb_connection.py (23 lines)
-├── stages/
-│   ├── __init__.py
-│   ├── unique_id_mapping.py (87 lines) ⭐ NEW
-│   ├── prepare_sources.py (182 lines)
-│   ├── new_person_identification.py (50 lines)
-│   ├── proportions.py (103 lines)
-│   ├── probabilities.py (93 lines)
-│   ├── blocking.py (355 lines)
-│   ├── scoring.py (121 lines)
-│   └── post_linkage.py (429 lines)
-├── pipelines/
-│   ├── __init__.py
-│   └── linking_full.py (169 lines)
-├── cli/
-│   ├── __init__.py
-│   └── run_linking.py (59 lines)
-└── config/
-    ├── linkage_template.yml (96 lines)
-    ├── victoria_police_example.yml (56 lines)
-    └── hash_based_example.yml (69 lines)
-
-tests/v2/
-├── __init__.py
-├── conftest.py (126 lines)
-├── test_unique_id_mapping.py (76 lines)
-└── test_full_pipeline.py (48 lines)
-```
-
-**Total: 22 Python modules + 3 config templates + comprehensive documentation**
-
----
-
-## How to Verify Delivery
-
-### 1. Check File Structure
-```bash
-find src/eii_flinking -type f -name "*.py" | wc -l
-# Should output: 17 Python files
-```
-
-### 2. Run Tests
-```bash
-pytest tests/v2/ -v
-# Should show all tests passing
-```
-
-### 3. Run Pipeline with Sample Config
-```bash
-python -m eii_flinking.pipeline \
-    --config src/eii_flinking/config/victoria_police_example.yml
-# Should complete without errors
-```
-
-### 4. Verify Output
-```bash
-ls -la .duckdb/  # Database created
-ls -la artifacts/  # Outputs exported
-```
+### Interfaces
+- [x] CLI: `eii-link config.yml`
+- [x] Python API: `run_pipeline()`, `run_pipeline_from_dataframes()`
+- [x] Streamlit GUI with interactive configuration, progress, and download
 
 ---
 
 ## Requirements Fulfillment
 
-| Requirement | Status | Implementation |
-|-------------|--------|-----------------|
-| New files (not modify existing) | ✅ | /v2/ directory |
-| Core utilities (config, slk, duckdb) | ✅ | 3 modules |
-| unique_id_mapping stage | ✅ | unique_id_mapping.py |
-| Updated prepare_sources with field_mapping | ✅ | prepare_sources.py |
-| All 8 bespoke stages with input_a/input_b | ✅ | stages/ |
-| Both pipelines (linking_full) | ✅ | linking_full.py |
-| Configuration files (YAML templates) | ✅ | config/ (3 templates) |
-| CLI entry points | ✅ | run_linking.py |
-| Tests with sample data | ✅ | tests/v2/ (3 test files) |
-| No Splink implementation | ✅ | Not included |
-| Symmetric input_a/input_b naming | ✅ | Throughout codebase |
-| Hash-based ID generation | ✅ | unique_id_mapping.py |
+| Original Requirement | Status | Implementation |
+|---------------------|--------|----------------|
+| A→B cross-dataset linking (not self-dedup) | ✅ | All joins are A×B cross-joins |
+| Configuration layer for inputs | ✅ | `DatasetConfig`, `SourceConfig` in `config.py` |
+| CSV, Excel, database inputs | ✅ | `connectors/` package |
+| Field mapping to standard fields | ✅ | `field_mapping` in config; `_apply_mapping()` in `base.py` |
+| Optional fields / sparse columns | ✅ | `optional_fields` config; NULL → 0 weight in scoring |
+| Streamlit GUI | ✅ | `app/main.py` |
+| All pairs above threshold (not just best) | ✅ | `post_linkage.py`; no QUALIFY unless max_matches set |
+| `match_rank` + `is_best_match` flag | ✅ | `ROW_NUMBER() OVER (PARTITION BY a_id ...)` |
+| Raw `total_weight` + confidence band | ✅ | Both in `out.linkage_results` |
 
 ---
 
-## Documentation Provided
-
-1. **V2_README.md** (600+ lines)
-   - System overview
-   - Architecture description
-   - Configuration reference
-   - Algorithm explanations
-   - Performance notes
-   - Troubleshooting guide
-
-2. **IMPLEMENTATION_SUMMARY.md** (300+ lines)
-   - What was built
-   - File-by-file summary
-   - Feature checklist
-   - Configuration structure
-   - Output schema
-   - Usage examples
-
-3. **QUICKSTART.md** (250+ lines)
-   - 5-minute setup
-   - Configuration examples
-   - Common adjustments
-   - Result interpretation
-   - Troubleshooting
-
-4. **DELIVERY_CHECKLIST.md** (This file)
-   - Completion verification
-   - Feature checklist
-   - File structure
-
----
-
-## Code Quality
-
-✅ **Type Hints**
-- All functions have type hints
-- Python 3.12+ compatible
-
-✅ **Documentation**
-- Docstrings on all classes and functions
-- Inline comments for complex logic
-- Configuration examples
-
-✅ **Error Handling**
-- Validation of configuration
-- Meaningful error messages
-- Graceful failure modes
-
-✅ **Testing**
-- Unit tests for key components
-- Integration tests for full pipeline
-- Fixture-based test data
-
----
-
-## Performance Characteristics
-
-- **DuckDB Threads**: 4 (configurable via PRAGMA)
-- **Blocking Parallelization**: 13 alphabet chunks
-- **Memory Efficient**: Uses DuckDB auto-managed memory
-- **Typical Runtime**: 30-60 seconds for 5K new vs 100K existing
-- **Scalability**: Linear up to ~1M records
-
----
-
-## Next Steps for User
-
-1. **Review documentation**
-   - Read V2_README.md for complete system understanding
-   - Check QUICKSTART.md for immediate setup
-
-2. **Prepare data**
-   - Organize CSVs with required columns
-   - Decide on unique ID strategy (named or hash)
-
-3. **Configure**
-   - Copy linkage_template.yml
-   - Update with your data paths and columns
-
-4. **Test**
-   - Run with sample configuration
-   - Verify output structure
-   - Validate matches manually
-
-5. **Tune**
-   - Adjust thresholds based on results
-   - Monitor average match weights
-   - Iterate until satisfied
-
-6. **Deploy**
-   - Integrate into production pipeline
-   - Schedule regular runs
-   - Monitor quality metrics
-
----
-
-## Support Resources
-
-- **Documentation**: V2_README.md (comprehensive reference)
-- **Quick Start**: QUICKSTART.md (5-minute setup)
-- **Examples**: Configuration templates in config/
-- **Tests**: tests/v2/ (working examples)
-- **Troubleshooting**: V2_README.md troubleshooting section
-
----
-
-## Completion Status: ✅ 100% COMPLETE
-
-All requirements met. System ready for use.
-
-**Delivered by**: Claude Sonnet 4.6  
-**Date**: 2026-07-17  
-**Status**: Production Ready
+**Last Updated:** 2026-07-17  
+**Status:** Production Ready

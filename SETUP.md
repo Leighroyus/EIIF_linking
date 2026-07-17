@@ -1,269 +1,292 @@
-# EIIF Linking - Setup Guide
-
-Complete step-by-step guide to set up and run the EIIF Linking record linkage system.
+# EIIF Linking — Setup Guide
 
 ## Prerequisites
 
 - Python 3.12 or later
-- pip or conda for package management
-- Git (already installed if you cloned this repo)
-- 2GB+ available disk space (for DuckDB)
+- pip
 
 ## Installation
 
-### Step 1: Clone Repository
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/Leighroyus/EIIF_linking.git
 cd EIIF_linking
 ```
 
-### Step 2: Create Virtual Environment (Recommended)
+### 2. Create Virtual Environment (Recommended)
 
 ```bash
-# Using venv
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+```
 
-# Or using conda
+Or with conda:
+```bash
 conda create -n eii-flinking python=3.12
 conda activate eii-flinking
 ```
 
-### Step 3: Install Dependencies
+### 3. Install Package and Dependencies
 
 ```bash
-pip install duckdb pandas PyYAML pytest
+pip install -e .
 ```
 
-Core Dependencies:
-- duckdb (1.0+) - In-memory SQL database for data processing
-- pandas (2.0+) - Data frame operations
-- PyYAML (6.0+) - YAML configuration parsing
-- pytest (7.0+) - Testing framework (optional, only if running tests)
+This installs the `eii-link` CLI and all required dependencies:
+- `duckdb >= 1.1.0`
+- `pandas >= 2.2.0`
+- `openpyxl >= 3.1.0` (Excel support)
+- `xlrd >= 2.0.1` (legacy `.xls` support)
+- `pyyaml >= 6.0`
+- `sqlalchemy >= 2.0.0` (database connectors)
+- `streamlit >= 1.36.0` (GUI)
+- `plotly >= 5.22.0` (GUI charts)
+- `pyarrow >= 16.0.0`
 
-### Step 4: Verify Installation
+### 4. Verify Installation
 
 ```bash
-python -c "import duckdb, pandas, yaml; print('All dependencies installed')"
+eii-link --help
 ```
 
 ## Project Structure
 
 ```
-EIIF_linking/
-├── src/eii_flinking/              # Main package
-│   ├── config.py                  # Configuration management
-│   ├── slk.py                     # Soundex-like key generation
-│   ├── duckdb_connection.py       # Database connection
-│   ├── stages/                    # 8 pipeline stages
-│   ├── pipelines/                 # Main pipeline
-│   ├── cli/                       # CLI entry point
-│   └── config/                    # Configuration templates
-├── tests/v2/                      # Test suite
-├── README.md                      # Main documentation
-├── SETUP.md                       # This file
-├── QUICKSTART.md                  # 5-minute quick start
-└── V2_README.md                   # Comprehensive reference
+EIIFlinking/
+├── config/
+│   └── example_linkage.yml       # Annotated configuration template
+├── docs/                         # Documentation
+├── src/
+│   └── eii_flinking/
+│       ├── __init__.py
+│       ├── schema.py             # Standard field list and defaults
+│       ├── config.py             # YAML → dataclass configuration loading
+│       ├── pipeline.py           # Pipeline orchestration and entry points
+│       ├── slk.py                # Soundex-like key generation
+│       ├── duckdb/
+│       │   └── connection.py     # DuckDB connection with lnk/wrk/out schemas
+│       ├── connectors/           # Input source adapters
+│       │   ├── base.py           # Abstract base + field mapping logic
+│       │   ├── csv_connector.py
+│       │   ├── excel_connector.py
+│       │   ├── database_connector.py
+│       │   └── factory.py
+│       ├── stages/               # Pipeline stages (called in order by pipeline.py)
+│       │   ├── ingest.py         # Normalise raw → lnk.dataset_a / lnk.dataset_b
+│       │   ├── proportions.py    # Field frequency tables for UP calculation
+│       │   ├── blocking.py       # Candidate pair generation (4 rules)
+│       │   ├── scoring.py        # Log-odds weight calculation
+│       │   └── post_linkage.py   # Ranking, filtering → out.linkage_results
+│       └── app/
+│           └── main.py           # Streamlit GUI
+├── pyproject.toml
+├── README.md
+└── SETUP.md
 ```
 
-## Configuration Setup
+## Configuration
 
-### Option 1: Quick Start (Recommended)
+Copy and adapt the example config:
 
 ```bash
 cp config/example_linkage.yml config/my_linkage.yml
-# Edit with your settings
 ```
 
-### Option 2: Named Field IDs
+### Dataset configuration
 
-```bash
-cp src/eii_flinking/config/victoria_police_example.yml config/my_linkage.yml
-# Edit paths and field mappings
-```
-
-### Option 3: Hash-Based IDs
-
-```bash
-cp src/eii_flinking/config/hash_based_example.yml config/my_linkage.yml
-# Update hash_columns to match your data
-```
-
-## Preparing Your Data
-
-CSV files should have standard columns:
-- first_name, middle_name, surname
-- date_of_birth (YYYY-MM-DD or YYYYMMDD)
-- gender (M/F/U)
-- street_number, street_name, suburb, state (optional)
-- Plus a unique_id column OR columns to hash
-
-### Example CSV
-
-```csv
-person_id,first_name,middle_name,surname,date_of_birth,gender,street_number,street_name,suburb,state
-P001,John,Michael,Smith,1980-01-15,M,123,Main Street,Springfield,IL
-P002,Mary,Elizabeth,Johnson,1975-03-22,F,456,Oak Avenue,Shelbyville,IL
-```
-
-### Field Mapping in Configuration
+Each dataset (`dataset_a` / `dataset_b`) specifies its source, ID strategy, and field mapping independently:
 
 ```yaml
-dataset:
-  field_mapping:
-    unique_id: "person_id"
-    first_name: "first_name"
-    surname: "surname"
-    date_of_birth: "dob"
-    gender: "sex_code"
+dataset_a:
+  source_type: csv           # csv | excel | database
+
+  source:
+    file_path: data/set_a.csv
+    # sheet_name: Sheet1                      # Excel only
+    # connection_string: "postgresql://..."   # database
+    # table_name: people_set_a               # database
+    # query: "SELECT * FROM people"          # database (alternative to table_name)
+
+  unique_id:
+    strategy: named_field    # named_field | hash
+    field_name: PersonID     # source column name (named_field strategy)
+    # hash_columns: [first_name, last_name, date_of_birth]  # hash strategy
+    # hash_algorithm: md5    # md5 | sha256
+
+  field_mapping:             # standard_field: source_column_name
+    first_name:    GivenName
+    last_name:     Surname
+    date_of_birth: DOB
+    gender:        Sex
+    address_suburb: City     # optional — omit if not present
+
+  optional_fields:           # NULL values in these fields won't penalise scores
+    - middle_name
+    - gender
+    - address_suburb
+    - address_line1
+    - address_state
+    - postcode
+```
+
+Standard pipeline fields: `first_name`, `last_name`, `middle_name`, `date_of_birth`, `gender`, `address_line1`, `address_suburb`, `address_state`, `postcode`. Only `first_name` and `last_name` are required; all others should be listed in `optional_fields` if they may be sparse.
+
+### Linkage settings
+
+```yaml
+linkage:
+  thresholds:
+    total_weight_min: 20.0       # minimum log-odds to include a pair in output
+    confidence_high:  30.0       # above this → HIGH confidence
+    confidence_medium: 20.0      # above this → MEDIUM (below → LOW)
+    jw_first_name_min: 0.75      # minimum Jaro-Winkler for first name
+    jw_last_name_min:  0.75      # minimum Jaro-Winkler for last name
+    max_matches_per_a_record: null  # null = all above threshold; 1 = best only
+
+  blocking:
+    fuzzy_name_min: 0.85         # Jaro-Winkler gate applied during blocking
+    alphabet_chunks: [AB, CD, EF, GH, IJ, KL, MN, OP, QR, ST, UV, WXYZ]
+```
+
+### Output and DuckDB
+
+```yaml
+output:
+  format: csv                    # csv | excel
+  file_path: results/linkage_results.csv
+
+duckdb:
+  database_path: ":memory:"      # or a file path to persist the database
 ```
 
 ## Running the Pipeline
 
-### Command Line
+### CLI
 
 ```bash
-# Basic run
-python -m eii_flinking.pipeline --config config/my_linkage.yml
-
-# With CSV export
-python -m eii_flinking.pipeline --config config/my_linkage.yml --export
+eii-link config/my_linkage.yml
 ```
+
+To skip file export (results still available in DuckDB):
+```bash
+eii-link config/my_linkage.yml --no-export
+```
+
+### Streamlit GUI
+
+No config file required — configure everything through the UI:
+
+```bash
+streamlit run src/eii_flinking/app/main.py
+```
+
+Four tabs: Dataset A → Dataset B → Linkage Settings → Run & Results. Results can be downloaded as CSV or Excel directly from the browser.
 
 ### Python API
 
 ```python
-from eii_flinking.pipelines.linking_full import run_pipeline
+from eii_flinking.pipeline import run_pipeline
 
-db_path = run_pipeline("config/my_linkage.yml", export=True)
-print(f"Results saved to: {db_path}")
+# Returns a pandas DataFrame of results
+results_df = run_pipeline("config/my_linkage.yml")
+print(results_df.head())
+```
+
+For programmatic use with in-memory DataFrames (e.g., when data is already loaded):
+
+```python
+from eii_flinking.pipeline import run_pipeline_from_dataframes
+from eii_flinking.config import load_config
+
+config = load_config("config/my_linkage.yml")
+results_df = run_pipeline_from_dataframes(df_a, df_b, config)
 ```
 
 ## Accessing Results
 
-### Query Results via Python
+Results are written to `out.linkage_results` in the DuckDB connection. If `output.file_path` is set (and `--no-export` is not passed), they are also exported to that path.
+
+### Query via Python
 
 ```python
 import duckdb
 
-conn = duckdb.connect(".duckdb/linkage.duckdb", read_only=True)
+conn = duckdb.connect("path/to/linkage.duckdb", read_only=True)
 
-# Get all matched records
 results = conn.execute("""
-    SELECT CLUSTER_ID, PERSON_ID, FIRST_NAME, LAST_NAME, 
-           BIRTH_DT, DATA_SOURCE, AVG_MATCH_WEIGHT
-    FROM out.final_linkage_output
-    ORDER BY CLUSTER_ID, PERSON_ID
+    SELECT a_id, b_id, total_weight, confidence, match_rank, is_best_match,
+           a_first_name, a_last_name, b_first_name, b_last_name
+    FROM out.linkage_results
+    ORDER BY a_id, match_rank
 """).fetch_df()
 
 print(results)
 conn.close()
 ```
 
-### Query Results via CSV
+### Output Columns
 
-```bash
-cat artifacts/linkage/final_linkage_output.csv
-```
-
-## Running Tests
-
-```bash
-# All tests
-pytest tests/v2/ -v
-
-# Specific test
-pytest tests/v2/test_unique_id_mapping.py -v
-
-# With coverage
-pytest tests/v2/ --cov=eii_flinking -v
-```
+| Column | Type | Description |
+|--------|------|-------------|
+| `a_id` | VARCHAR | Record ID from Dataset A |
+| `b_id` | VARCHAR | Record ID from Dataset B |
+| `total_weight` | DOUBLE | Total log-odds match score |
+| `confidence` | VARCHAR | HIGH / MEDIUM / LOW |
+| `match_rank` | INTEGER | Rank within A record's matches (1 = best) |
+| `is_best_match` | BOOLEAN | TRUE if match_rank = 1 |
+| `a_first_name` | VARCHAR | A record first name |
+| `a_middle_name` | VARCHAR | A record middle name |
+| `a_last_name` | VARCHAR | A record last name |
+| `a_dob` | VARCHAR | A record date of birth (YYYYMMDD) |
+| `a_gender` | VARCHAR | A record gender (M/F) |
+| `a_suburb` | VARCHAR | A record address suburb |
+| `a_state` | VARCHAR | A record address state |
+| `b_first_name` ... `b_state` | VARCHAR | B record equivalents |
+| `sim_first_name` | DOUBLE | Jaro-Winkler similarity for first name (0–1) |
+| `sim_last_name` | DOUBLE | Jaro-Winkler similarity for last name |
+| `sim_middle_name` | DOUBLE | Jaro-Winkler similarity for middle name |
+| `sim_dob` | DOUBLE | Jaro-Winkler similarity for date of birth |
+| `wgt_first_name` | DOUBLE | Log-odds weight from first name field |
+| `wgt_middle_name` | DOUBLE | Log-odds weight from middle name field |
+| `wgt_last_name` | DOUBLE | Log-odds weight from last name field |
+| `wgt_dob` | DOUBLE | Log-odds weight from date of birth field |
+| `wgt_gender` | DOUBLE | Log-odds weight from gender field |
+| `wgt_suburb` | DOUBLE | Log-odds weight from suburb field |
 
 ## Troubleshooting
 
-### DuckDB Connection Failed
+### `eii-link: command not found`
+The package was not installed. Run `pip install -e .` and ensure the virtual environment is activated.
 
-```bash
-rm -rf .duckdb/
-python -m eii_flinking.pipeline --config config/my_linkage.yml
+### `FileNotFoundError` for CSV/Excel
+Check that file paths in the config are correct relative to the directory where you run `eii-link`. Use absolute paths if unsure.
+
+### Column mapping errors
+Verify `field_mapping` values match actual column names. Print them with:
+```python
+import pandas as pd
+print(pd.read_csv("data/set_a.csv").columns.tolist())
 ```
 
-### CSV File Not Found
+### No matches found
+- Lower `total_weight_min` (try 15.0)
+- Lower `jw_first_name_min` / `jw_last_name_min` (try 0.70)
+- Lower `fuzzy_name_min` (try 0.80)
+- Check DOB format: must be recognisable as 8-digit numeric (YYYYMMDD or YYYY-MM-DD)
+- Verify the two datasets actually have overlapping people
 
-1. Check file paths in config are absolute or relative to project root
-2. Verify CSV files exist
-3. Check for typos in file paths
-
-### Column Not Found
-
-1. Verify CSV column names match field_mapping in config
-2. Check for extra spaces in column names
-3. Print CSV columns: head -1 data/input_a.csv
-
-### Module Import Error
-
-```bash
-pip install --force-reinstall duckdb pandas PyYAML
-```
-
-### Import eii_flinking Not Found
-
-```bash
-cd /path/to/EIIF_linking
-source venv/bin/activate
-python -m eii_flinking.pipeline --config config/my_linkage.yml
-```
-
-## Performance Tuning
-
-### For Large Datasets (100K+ records)
-
-```yaml
-thresholds:
-  fuzzy_name_min: 0.90
-  fuzzy_birth_dt_min: 0.90
-```
-
-### For Small Datasets (< 1K records)
-
-```yaml
-thresholds:
-  total_weight_min: 20.0
-  fuzzy_name_min: 0.80
-```
-
-## Verification
-
-Test your setup:
-
-```bash
-python -c "
-import duckdb
-import pandas
-import yaml
-from eii_flinking.config import load_config
-from eii_flinking.slk import build_slk
-print('Setup successful!')
-"
-```
-
-## Next Steps
-
-1. Review [QUICKSTART.md](QUICKSTART.md) for 5-minute quick start
-2. Prepare your CSV files
-3. Configure pipeline (copy config template, update paths)
-4. Run pipeline
-5. Validate results
+### Too many false positives
+- Raise `total_weight_min` (try 25–30)
+- Raise `jw_first_name_min` / `jw_last_name_min`
 
 ## Documentation
 
-- [README.md](README.md) - Overview
-- [QUICKSTART.md](QUICKSTART.md) - 5-minute setup
-- [V2_README.md](V2_README.md) - Comprehensive reference (600+ lines)
-- [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Architecture
+- [README.md](README.md) — Project overview and quick start
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) — 5-minute guide
+- [docs/REFERENCE.md](docs/REFERENCE.md) — Complete configuration and algorithm reference
+- [docs/IMPLEMENTATION_SUMMARY.md](docs/IMPLEMENTATION_SUMMARY.md) — Architecture details
 
 ---
 
 Last Updated: 2026-07-17
-Status: Production Ready

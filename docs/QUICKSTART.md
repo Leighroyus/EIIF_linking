@@ -1,180 +1,126 @@
-# Quick Start Guide - Justice Data Linkage v2
+# Quick Start Guide
 
 ## 5-Minute Setup
 
 ### Step 1: Prepare Your Data
 
-You need two CSV files:
+You need two files — one per dataset. Column names don't need to match; the config handles mapping.
 
-**input_a.csv** (reference/base set)
-```
-person_id,first_name,middle_name,surname,date_of_birth,gender,street_number,street_name,suburb,state
-P001,John,Michael,Smith,1980-01-15,M,123,Main Street,Springfield,IL
-P002,Mary,Elizabeth,Johnson,1975-03-22,F,456,Oak Avenue,Shelbyville,IL
+**set_a.csv** (Dataset A)
+```csv
+PersonID,GivenName,MiddleName,Surname,DOB,Sex,Suburb
+A001,John,Michael,Smith,19800115,M,Springfield
+A002,Mary,Elizabeth,Johnson,19750322,F,Shelbyville
 ```
 
-**input_b.csv** (new/query set)
-```
-person_id,first_name,middle_name,surname,date_of_birth,gender,street_number,street_name,suburb,state
-P101,John,M,Smith,1980-01-15,M,123,Main Street,Springfield,IL
-P102,William,H,Taylor,1990-02-14,M,202,New Street,New Town,IL
+**set_b.csv** (Dataset B — different column names, that's fine)
+```csv
+FirstName,LastName,BirthDate,GenderCode
+John,Smith,1980-01-15,M
+Mary,Johnston,19750322,F
 ```
 
 ### Step 2: Create Configuration File
-
-Copy the template and customize:
 
 ```bash
 cp config/example_linkage.yml config/my_linkage.yml
 ```
 
-Edit `config/my_linkage.yml`:
+Edit `config/my_linkage.yml` — at minimum, update file paths and field mappings:
 
 ```yaml
-extract_labels:
-  input_a: "reference_202401"
-  input_b: "current_202407"
-
-dataset:
-  name: "my_data"
-  
-  input_a:
-    unique_id:
-      strategy: "named_field"
-      field_name: "person_id"
-  
-  input_b:
-    unique_id:
-      strategy: "named_field"
-      field_name: "person_id"
-  
+dataset_a:
+  source_type: csv
+  source:
+    file_path: data/set_a.csv
+  unique_id:
+    strategy: named_field
+    field_name: PersonID
   field_mapping:
-    unique_id: "person_id"
-    first_name: "first_name"
-    middle_name: "middle_name"
-    surname: "surname"
-    date_of_birth: "date_of_birth"
-    gender: "gender"
-    street_number: "street_number"
-    street_name: "street_name"
-    suburb: "suburb"
-    state: "state"
+    first_name:    GivenName
+    last_name:     Surname
+    middle_name:   MiddleName
+    date_of_birth: DOB
+    gender:        Sex
+    address_suburb: Suburb
+  optional_fields: [middle_name, gender, address_suburb]
 
-paths:
-  input_a_raw_csv: "data/input_a.csv"
-  input_b_raw_csv: "data/input_b.csv"
+dataset_b:
+  source_type: csv
+  source:
+    file_path: data/set_b.csv
+  unique_id:
+    strategy: hash
+    hash_columns: [first_name, last_name, date_of_birth]
+    hash_algorithm: md5
+  field_mapping:
+    first_name:    FirstName
+    last_name:     LastName
+    date_of_birth: BirthDate
+    gender:        GenderCode
+  optional_fields: [middle_name, gender, address_suburb]
 
-thresholds:
-  total_weight_min: 20.0
-  jw_first_name_min: 0.75
-  last_name_uniqueness_threshold: 10
-  fuzzy_name_min: 0.85
-  fuzzy_birth_dt_min: 0.85
+linkage:
+  thresholds:
+    total_weight_min: 20.0
+    confidence_high:  30.0
+    confidence_medium: 20.0
+    jw_first_name_min: 0.75
+    jw_last_name_min:  0.75
 
-blocking:
-  alphabet_chunks:
-    - AB
-    - CD
-    - EF
-    - GH
-    - IJ
-    - KL
-    - MN
-    - OP
-    - QR
-    - ST
-    - UV
-    - WX
-    - YZ
+output:
+  format: csv
+  file_path: results/linkage_results.csv
 
 duckdb:
-  database_path: ".duckdb/linkage.duckdb"
-
-artifacts:
-  output_dir: "artifacts/linkage"
-  export_csv: true
+  database_path: ":memory:"
 ```
 
 ### Step 3: Run Pipeline
 
 ```bash
-python -m eii_flinking.pipeline --config config/my_linkage.yml --export
-```
-
-Expected output:
-```
-Pipeline completed successfully. Database: /path/to/.duckdb/linkage.duckdb
+eii-link config/my_linkage.yml
 ```
 
 ### Step 4: View Results
 
-Query the results:
+Open `results/linkage_results.csv`, or query via Python:
 
 ```python
-import duckdb
+import pandas as pd
 
-# Open results database
-conn = duckdb.connect(".duckdb/linkage.duckdb", read_only=True)
-
-# Get all matched records (CLUSTER_ID groups together matches)
-matched = conn.execute("""
-    SELECT CLUSTER_ID, PERSON_ID, FIRST_NAME, LAST_NAME, BIRTH_DT, DATA_SOURCE
-    FROM out.final_linkage_output
-    ORDER BY CLUSTER_ID
-""").fetch_df()
-
-print(matched)
-
-# Summary: how many clusters formed
-summary = conn.execute("""
-    SELECT COUNT(*) as total_records, 
-           COUNT(DISTINCT CLUSTER_ID) as total_clusters
-    FROM out.final_linkage_output
-""").fetch_df()
-print(summary)
-
-# Check matches between input_a and input_b
-cross_matched = conn.execute("""
-    SELECT CLUSTER_ID, COUNT(*) as cnt,
-           STRING_AGG(DISTINCT DATA_SOURCE, ', ') as sources
-    FROM out.final_linkage_output
-    GROUP BY CLUSTER_ID
-    HAVING COUNT(DISTINCT DATA_SOURCE) > 1
-""").fetch_df()
-print(f"\nMatches between datasets: {len(cross_matched)}")
-print(cross_matched)
-
-conn.close()
+results = pd.read_csv("results/linkage_results.csv")
+print(results[["a_id", "b_id", "total_weight", "confidence", "match_rank", "is_best_match"]].head(20))
 ```
-
-### Step 5: Export Results (Optional)
-
-CSV files exported to `artifacts/linkage/` including:
-- `final_linkage_output.csv`: Main results
-- `probabilities_new.csv`: Match probabilities
-- `scores_new.csv`: Match scores
-- `accepted_new.csv`: Filtered pairs
 
 ---
 
-## Special Case: No Existing Unique IDs?
+## Alternative: Use the Streamlit GUI
 
-If your data doesn't have unique IDs, use **hash-based generation**:
+No config file needed — configure everything through the browser:
 
-```yaml
-dataset:
-  input_b:
-    unique_id:
-      strategy: "hash"
-      hash_columns:
-        - first_name
-        - surname
-        - date_of_birth
-        - suburb
-      algorithm: "sha256"
+```bash
+streamlit run src/eii_flinking/app/main.py
 ```
 
-The system will generate unique IDs deterministically from these columns.
+Four tabs: **Dataset A** → **Dataset B** → **Linkage Settings** → **Run & Results**
+
+Upload files, set field mappings, adjust thresholds, run, and download results — all interactively.
+
+---
+
+## No Existing Unique IDs?
+
+Use hash-based ID generation — a deterministic ID derived from field values:
+
+```yaml
+unique_id:
+  strategy: hash
+  hash_columns: [first_name, last_name, date_of_birth]
+  hash_algorithm: sha256
+```
+
+The same person will always get the same hash if their name/DOB matches, allowing stable linkage even without a source ID.
 
 ---
 
@@ -182,101 +128,70 @@ The system will generate unique IDs deterministically from these columns.
 
 ### Getting too many false matches?
 
-Increase thresholds in config:
 ```yaml
 thresholds:
-  total_weight_min: 20.0  # Increase from 31
+  total_weight_min: 25.0    # raise from 20.0
+  jw_first_name_min: 0.80   # raise from 0.75
 ```
 
 ### Not finding enough matches?
 
-Decrease thresholds:
 ```yaml
 thresholds:
-  total_weight_min: 20.0  # Decrease from 31
-  fuzzy_name_min: 0.80  # Decrease from 0.85
+  total_weight_min: 15.0    # lower from 20.0
+  jw_first_name_min: 0.70   # lower from 0.75
+blocking:
+  fuzzy_name_min: 0.80      # lower from 0.85
 ```
 
-### Having issues with common names?
+### Want only the best B match per A record?
 
-Adjust surname filter:
 ```yaml
 thresholds:
-  last_name_uniqueness_threshold: 5  # Lower = less filtering
+  max_matches_per_a_record: 1
 ```
+
+### Want all B matches regardless of count?
+
+Leave `max_matches_per_a_record: null` (the default). Use `match_rank` and `is_best_match` in your output to identify the best match when needed.
 
 ---
 
-## Expected Output Format
+## Understanding Output Columns
 
-Final linkage table columns:
-
-| Field | Meaning |
-|-------|---------|
-| SLK | Soundex-like key (healthcare standard) |
-| PERSON_ID | Original unique ID from input |
-| BIRTH_DT | Birth date (YYYYMMDD format) |
-| FIRST_NAME | First name |
-| LAST_NAME | Surname |
-| GENDER_CD | Gender (M/F/U) |
-| CLUSTER_ID | **Consolidated ID - same ID = matched records** |
-| CONFIDENCE_DUP | 1 if this record matched to others |
-| AVG_MATCH_WEIGHT | Average match score (higher = more confident) |
-| DATA_SOURCE | Which input this came from (input_a label or input_b label) |
-
----
+| Column | Meaning |
+|--------|---------|
+| `a_id` | Identifier from Dataset A |
+| `b_id` | Matched identifier from Dataset B |
+| `total_weight` | Log-odds score — higher means more confident |
+| `confidence` | HIGH (≥30) / MEDIUM (≥20) / LOW (<20) |
+| `match_rank` | 1 = best B match for this A record; 2 = next best; etc. |
+| `is_best_match` | TRUE if `match_rank = 1` |
+| `sim_first_name` | Jaro-Winkler similarity for first names (0–1) |
+| `wgt_first_name` | Log-odds weight contributed by first name |
 
 ## Understanding Match Quality
 
-Match weight interpretation:
-- **Weight < 20**: Likely non-matches, but accepted (usually due to shared rare names/addresses)
-- **Weight 20-40**: Good matches (most matches in this range)
-- **Weight 40-60**: High-confidence matches
-- **Weight > 60**: Very high-confidence matches (usually exact or near-exact matches)
+Typical log-odds score ranges:
+- **< 15**: Weak — possible coincidences, check manually
+- **15–25**: Moderate — good matches when names are common
+- **25–40**: Strong — high-confidence matches
+- **> 40**: Very strong — near-exact matches
 
 ---
 
 ## Troubleshooting
 
-### Error: "Table not found"
-- Check CSV file paths in config are correct
-- Ensure CSV files have expected columns
+### No matches found
+- Check data quality: are names and DOBs populated in both datasets?
+- DOB format must be parseable as 8-digit numeric (YYYYMMDD or YYYY-MM-DD)
+- Try lowering `total_weight_min` to 15.0 and `fuzzy_name_min` to 0.80
+- Confirm the two datasets actually share people
 
-### Error: "DuckDB database locked"
-- Delete `.duckdb/` folder and re-run
-- Only one process should access database at a time
-
-### No matches found (CLUSTER_ID all different)
-- Thresholds too high - try lowering
-- Data quality issues - check names/DOBs
-- Datasets have no overlapping people - verify expected overlaps
-
-### Too many matches (false positives)
-- Thresholds too low - try raising
-- Address information missing - matches may be over-confident
-- Common names dominating - try raising uniqueness threshold
+### Too many matches
+- Raise `total_weight_min` (try 25–30)
+- Ensure DOB is mapped correctly — DOB is very discriminating when present
 
 ---
 
-## Next Steps
-
-1. **Try with your own data**: Update config with real CSVs
-2. **Validate results**: Review sample matched records manually
-3. **Tune thresholds**: Adjust if needed based on results
-4. **Automate**: Integrate pipeline into daily/weekly jobs
-5. **Monitor quality**: Track average match weights over time
-
----
-
-## Sample Real-World Command
-
-```bash
-# Victoria Police example
-python -m eii_flinking.pipeline \
-    --config src/eii_flinking/config/victoria_police_example.yml \
-    --export
-```
-
----
-
-**For more details, see V2_README.md**
+**For complete configuration reference, see [REFERENCE.md](REFERENCE.md)**

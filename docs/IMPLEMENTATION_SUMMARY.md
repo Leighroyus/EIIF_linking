@@ -1,354 +1,195 @@
-# Justice Data Linkage v2 - Implementation Summary
+# EIIF Linking — Implementation Summary
 
-## What Was Implemented
+## What This System Does
 
-A complete redesign of the record linkage system with the following new architecture:
+EIIF Linking is a cross-dataset record linkage system: given two independent person extracts (Set A and Set B), it finds A→B pairs that refer to the same person. It is **not** a deduplication system — it does not find duplicates within a single dataset.
 
-### Core Modules Created
+It uses the Fellegi-Sunter probabilistic model with Jaro-Winkler string similarity, 4-rule alphabet-chunked blocking, and a config-driven field mapping layer that accepts CSV, Excel, or database inputs.
 
-1. **`src/eii_flinking/config.py`**
-   - `load_config()`: Load YAML configuration with metadata
-   - `resolve_path()`: Resolve relative paths from project root
-   - Supports config inheritance and validation
+---
 
-2. **`src/eii_flinking/slk.py`**
-   - `build_slk()`: Generate Soundex-like keys for healthcare linkage
-   - Phonetic name encoding with character mapping tables
-   - DOB and gender encoding
-   - Deterministic unique identifiers
+## Architecture
 
-3. **`src/eii_flinking/duckdb_connection.py`**
-   - `connect()`: Initialize DuckDB with 4-thread parallelization
-   - Automatic directory creation
-   - Clean connection management
+### Input Layer — Connectors
 
-### Pipeline Stages (8 modules)
+Each dataset is loaded independently through a connector that applies field mapping before handing data to the pipeline.
 
-All located in `src/eii_flinking/stages/`:
-
-1. **`unique_id_mapping.py`** (NEW)
-   - Dual strategies: named_field or hash-based
-   - `generate_hash_id()`: Deterministic hash from column values
-   - `run()`: Apply ID strategy to dataset
-   - Supports SHA256 and MD5 algorithms
-
-2. **`prepare_sources.py`** (REDESIGNED)
-   - `_legacy_upper()`: Handle CP-1252 legacy encoding
-   - `run()`: Load two datasets with field mapping
-   - Creates working tables with normalized data
-   - Separate tables for reference (input_a) and current (input_b)
-
-3. **`new_person_identification.py`** (REDESIGNED)
-   - `leap_filter()`: Exclude invalid records (unknown gender + no DOB, etc.)
-   - `run()`: Classify new vs existing people
-   - Creates `wrk.new_people` and `wrk.existing_people` tables
-
-4. **`proportions.py`** (UNCHANGED)
-   - `_create_proportion_table()`: Calculate field frequency distributions
-   - `run()`: Create all proportion tables (first_name, last_name, gender, DOB fields)
-   - Computes uniqueness scores (log₂ of max_freq/actual_freq)
-
-5. **`probabilities.py`** (UNCHANGED)
-   - `_create_probabilities()`: Assign match probabilities
-   - `run()`: Create probability tables for new and existing
-   - Combines field frequencies with prior probabilities
-
-6. **`blocking.py`** (UNCHANGED)
-   - `_prepare_blocking_source()`: Prepare data with derived columns
-   - `_create_chunk_blocks()`: Multi-strategy blocking (5 rules + fuzzy filtering)
-   - `_union_chunks()`: Combine alphabet chunks
-   - `run()`: Generate candidate pairs with thresholds
-
-7. **`scoring.py`** (UNCHANGED)
-   - `_create_scores()`: Calculate match weights using log-odds model
-   - Jaro-Winkler similarity for names
-   - Field agreement evaluation
-   - Total weight aggregation
-
-8. **`post_linkage.py`** (UNCHANGED)
-   - `UnionFind`: Transitive closure clustering
-   - `_create_scores_with_address_match()`: Add address features, filter pairs
-   - `_build_components()`: Identify connected components
-   - `_build_pre_final()`: Generate final linkage output
-   - `run()`: Orchestrate filtering, clustering, ID assignment
-
-### Pipeline Orchestration
-
-**`src/eii_flinking/pipelines/linking_full.py`**
-- `run_pipeline()`: Main pipeline execution
-- `export_tables()`: Export intermediate and output tables to CSV
-- EXPORTS dict: Configurable output selection
-- Handles config loading, database initialization, stage orchestration
-
-### Command-Line Interface
-
-**`src/eii_flinking/cli/run_linking.py`**
-- Entry point for end users
-- Arguments: --config, --export, --database
-- Error handling and reporting
-- Example usage and documentation
-
-### Configuration Templates (3 files)
-
-All in `src/eii_flinking/config/`:
-
-1. **`linkage_template.yml`**
-   - Complete template with all configuration options
-   - Extensive comments explaining each setting
-   - Best practices and default values
-
-2. **`victoria_police_example.yml`**
-   - Real-world example: Victoria Police data
-   - Named field unique ID strategy
-   - Configured thresholds and blocking rules
-
-3. **`hash_based_example.yml`**
-   - Example with hash-based IDs
-   - Court records use case
-   - Hash columns: defendant_first_name, surname, hearing_date, court_code
-
-### Testing Framework
-
-All in `tests/v2/`:
-
-1. **`conftest.py`**
-   - `sample_data_dir`: Fixture creating test CSVs
-   - `config_file`: Fixture creating valid test config
-   - Sample data: 5 reference records, 6 new records with known matches
-
-2. **`test_unique_id_mapping.py`**
-   - `test_named_field_strategy()`: Verify named field mapping
-   - `test_hash_strategy()`: Verify hash-based ID generation
-   - Determinism check: same input → same hash
-
-3. **`test_full_pipeline.py`**
-   - `test_pipeline_execution()`: End-to-end pipeline test
-   - Verifies output table creation
-   - Schema validation
-   - Record count assertions
-
-### Key Features
-
-✅ **Flexible Input Handling**
-- Named field strategy: Use existing ID columns
-- Hash strategy: Generate deterministic IDs from multiple columns
-- Configurable per input dataset
-
-✅ **Field Mapping**
-- Map any CSV column names to standard fields
-- Config-driven, no code changes needed
-- Support for optional fields
-
-✅ **Symmetric Naming**
-- input_a / input_b (instead of current/previous)
-- Works for any dataset pair (temporal, cross-system, same-time)
-- Clear in documentation and output
-
-✅ **Probabilistic Matching**
-- Fellegi-Sunter model with field-level evidence
-- Configurable thresholds for sensitivity tuning
-- Log-odds scoring with interpretable weights
-
-✅ **Multi-Strategy Blocking**
-- 5 different blocking rules
-- Alphabet chunking for parallelization
-- Fuzzy similarity gates to reduce false positives
-
-✅ **Deterministic Clustering**
-- Union-Find transitive closure
-- Consolidated ID assignment
-- Preserves existing IDs when possible
-
-✅ **Comprehensive Output**
-- SLK generation for healthcare standard
-- Confidence scores and match weights
-- Address and manual match flags
-- Data source tracking
-
-✅ **Production Ready**
-- Error handling and validation
-- Configurable CSV export
-- Performance optimization (4-thread parallelization)
-- Comprehensive documentation
-
-## Configuration Structure
-
-### Essential Config Keys
-
-```yaml
-extract_labels:
-  input_a: "dataset_a_label"
-  input_b: "dataset_b_label"
-
-dataset:
-  name: "linkage_name"
-  input_a:
-    unique_id:
-      strategy: "named_field" | "hash"
-      field_name: "..."  # if named_field
-      hash_columns: [...]  # if hash
-  input_b:
-    unique_id: {...}
-  field_mapping:
-    unique_id: "..."
-    first_name: "..."
-    # ... more fields
-
-paths:
-  input_a_raw_csv: "..."
-  input_b_raw_csv: "..."
-
-thresholds:
-  total_weight_min: 20.0
-  jw_first_name_min: 0.75
-  last_name_uniqueness_threshold: 10
-  fuzzy_name_min: 0.85
-  fuzzy_birth_dt_min: 0.85
-
-duckdb:
-  database_path: ".duckdb/linkage.duckdb"
-
-artifacts:
-  output_dir: "artifacts/linkage"
-  export_csv: true
+```
+source file / database
+    ↓
+Connector (csv / excel / database)
+    ↓
+_apply_mapping(): source columns → standard pipeline fields
+    ↓
+lnk.stg_a / lnk.stg_b   (raw staging tables in DuckDB)
 ```
 
-## Output Schema
+Key modules:
+- `connectors/base.py` — `BaseConnector` abstract class; `load_to_duckdb()` and `_apply_mapping()` logic
+- `connectors/csv_connector.py`, `excel_connector.py`, `database_connector.py` — concrete implementations
+- `connectors/factory.py` — `get_connector(source_type)` and `load_dataset()` convenience wrapper
 
-### Final Linkage Table: `out.final_linkage_output`
+### Processing Layer — Pipeline Stages
 
-| Column | Type | Description |
-|--------|------|-------------|
-| SLK | VARCHAR | Soundex-like key |
-| PERSON_ID | VARCHAR | Original unique ID |
-| BIRTH_DT | VARCHAR | Birth date (YYYYMMDD) |
-| FIRST_NAME | VARCHAR | First name |
-| SECOND_NAME | VARCHAR | Middle name |
-| LAST_NAME | VARCHAR | Surname |
-| GENDER_CD | VARCHAR | Gender code |
-| CLUSTER_ID | INTEGER | Consolidated/matched ID |
-| CONFIDENCE_DUP | INTEGER | Duplicate confidence (0/1) |
-| AVG_MATCH_WEIGHT | DOUBLE | Average match weight |
-| ADDRESS_MATCH | INTEGER | Address match flag |
-| MANUAL_MATCH | INTEGER | Manual review flag |
-| DATA_SOURCE | VARCHAR | Input label (a or b) |
-| DATA_SOURCE_UPDATE | VARCHAR | Update timestamp (if applicable) |
+Five sequential stages transform raw data to ranked match pairs:
 
-## File Summary
-
-### Files Created: 22
-
-**Core Utilities (3)**
-- config.py (103 lines)
-- slk.py (124 lines)
-- duckdb_connection.py (23 lines)
-
-**Stages (8)**
-- unique_id_mapping.py (87 lines) - NEW
-- prepare_sources.py (182 lines) - REDESIGNED
-- new_person_identification.py (50 lines) - REDESIGNED
-- proportions.py (103 lines)
-- probabilities.py (93 lines)
-- blocking.py (355 lines)
-- scoring.py (121 lines)
-- post_linkage.py (429 lines)
-
-**Pipeline & CLI (2)**
-- linking_full.py (169 lines)
-- run_linking.py (59 lines)
-
-**Configuration (3)**
-- linkage_template.yml (96 lines)
-- victoria_police_example.yml (56 lines)
-- hash_based_example.yml (69 lines)
-
-**Tests (3)**
-- conftest.py (126 lines)
-- test_unique_id_mapping.py (76 lines)
-- test_full_pipeline.py (48 lines)
-
-**Documentation (1)**
-- V2_README.md (600+ lines)
-
-**Total: ~2500 lines of new code and documentation**
-
-## What Was NOT Included (Removed from Scope)
-
-- ✗ Splink implementation (~149 files)
-- ✗ Supervised learning modules
-- ✗ All deprecated stage wrappers
-- ✗ Multi-pipeline coordination
-- ✗ Web UI or visualization
-
-## How to Use
-
-### 1. Install Dependencies
-```bash
-pip install duckdb pandas PyYAML
+```
+lnk.stg_a / lnk.stg_b
+    ↓ ingest.py
+lnk.dataset_a / lnk.dataset_b   (normalised)
+    ↓ proportions.py
+lnk.prop_*                       (field frequency tables)
+    ↓ blocking.py
+wrk.candidate_pairs              (candidate A×B pairs)
+    ↓ scoring.py
+wrk.scored_pairs                 (with per-field and total weights)
+    ↓ post_linkage.py
+out.linkage_results              (filtered, ranked output)
 ```
 
-### 2. Create Config File
-```bash
-cp config/example_linkage.yml config/my_linkage.yml
-# Edit config with your paths and parameters
-```
+### DuckDB Schema
 
-### 3. Run Pipeline
-```bash
-python -m eii_flinking.pipeline --config config/my_linkage.yml --export
-```
+Three schemas partition the work:
+- **`lnk`** — stable data: normalised datasets, frequency tables
+- **`wrk`** — transient: candidates, scores (can be dropped after pipeline runs)
+- **`out`** — output: `out.linkage_results`
 
-### 4. Access Results
-```bash
-# DuckDB database
-.duckdb/linkage.duckdb
+### Interface Layer
 
-# CSV exports (if enabled)
-artifacts/linkage/final_linkage_output.csv
-artifacts/linkage/*.csv  # Other intermediate tables
-```
+Three ways to run the pipeline:
 
-### 5. Analyze Output
-```python
-import duckdb
+| Interface | Entry point | Use case |
+|-----------|-------------|----------|
+| CLI | `eii-link config.yml` | Automation, scripts |
+| Python API | `run_pipeline()` / `run_pipeline_from_dataframes()` | Integration, Jupyter |
+| Streamlit GUI | `streamlit run src/eii_flinking/app/main.py` | Interactive exploration |
 
-conn = duckdb.connect("path/to/linkage.duckdb", read_only=True)
-result = conn.execute("""
-    SELECT CLUSTER_ID, COUNT(*) as cnt
-    FROM out.final_linkage_output
-    GROUP BY CLUSTER_ID
-    HAVING cnt > 1
-""").fetch_df()
-print(result)  # Shows matched records
-```
+---
 
-## Testing
+## Module Reference
 
-```bash
-# Run all tests
-pytest tests/v2/ -v
+### `schema.py`
+- `STANDARD_FIELDS` — ordered list of all standard pipeline field names
+- `REQUIRED_FIELDS` — frozenset `{id, first_name, last_name}`
+- `DEFAULT_MATCH_PROBS` — default MP values per field
+- `CONFIDENCE_HIGH_THRESHOLD = 30.0`, `CONFIDENCE_MEDIUM_THRESHOLD = 20.0`
 
-# Run with coverage
-pytest tests/v2/ --cov=justice_data_linkage.v2 -v
-```
+### `config.py`
+Config is parsed from YAML into typed dataclasses:
+- `UniqueIdConfig` — strategy, field_name, hash_columns, hash_algorithm
+- `SourceConfig` — file_path, sheet_name, connection_string, table_name, query
+- `DatasetConfig` — source_type, source, unique_id, field_mapping, optional_fields
+- `ThresholdConfig` — total_weight_min, confidence_high, confidence_medium, jw thresholds, max_matches_per_a_record
+- `BlockingConfig` — alphabet_chunks, fuzzy_name_min
+- `LinkageConfig` — thresholds, blocking, match_probabilities
+- `OutputConfig` — format, file_path
+- `DuckDBConfig` — database_path
+- `AppConfig` — dataset_a, dataset_b, linkage, output, duckdb
 
-## Next Steps
+`load_config(config_path)` returns `AppConfig`.
 
-1. **Populate with real data**: Use provided config templates
-2. **Tune thresholds**: Adjust based on results
-3. **Add manual review**: Use MANUAL_MATCH column for feedback
-4. **Incremental updates**: Can add new input_b without full recompute of input_a
+### `duckdb/connection.py`
+- `connect(database_path=":memory:")` — opens DuckDB, runs `PRAGMA threads=4`, creates `lnk`, `wrk`, `out` schemas
 
-## Comparison: v1 vs v2
+### `connectors/base.py`
+- `load_to_duckdb(config, table_name, conn)` — reads source, applies mapping, registers in DuckDB
+- `_apply_mapping(df, config)` — reverses mapping dict (standard→source) to rename columns, pads missing standard fields as NULL, handles hash strategy (sets id=NULL for later hash computation in ingest)
 
-| Metric | v1 | v2 |
-|--------|----|----|
-| Python files | 50+ | 22 |
-| Lines of core code | ~2000 | ~1500 |
-| Configuration complexity | High | Low |
-| Unique ID handling | Fixed | Flexible |
-| Field mapping | Hard-coded | Config-driven |
-| Implementation count | 2 (Splink + Bespoke) | 1 (Bespoke) |
-| Time to setup | 30+ min | <5 min |
-| Time to first results | Days (data prep) | Minutes |
+### `stages/ingest.py`
+- `STG_A = "lnk.stg_a"`, `STG_B = "lnk.stg_b"` — constants used by pipeline.py
+- `_id_expression(uid)` — returns SQL expression for the ID column based on strategy
+- `normalise_table(conn, raw_table, out_table, uid)` — normalises one dataset
+- `run(conn, dataset_a_config, dataset_b_config)` — normalises both datasets
 
+### `stages/proportions.py`
+- `run(conn)` — creates `lnk.combined` view and `lnk.prop_{field}` frequency tables
+- `MIN_PROP = 0.0001` floor prevents log₂(0)
+
+### `stages/blocking.py`
+- `run(conn, config)` — generates candidates via 4 rules, applies fuzzy gate, writes `wrk.candidate_pairs`
+- Alphabet-chunked Rule 1 is the memory-efficient rule; Rules 2–4 are non-chunked
+
+### `stages/scoring.py`
+- `_jw_weight_expr(field, mp, jw_col, a_col, b_col, up_col)` — SQL CASE expression for JW-scored string fields
+- `_exact_weight_expr(mp, a_col, b_col, up_col)` — exact-match-only SQL expression
+- `_dob_weight_expr(mp)` — DOB-specific expression using `jw_dob` column alias
+- `run(conn, config)` — joins candidate_pairs with datasets and prop tables, scores all fields, writes `wrk.scored_pairs`
+
+### `stages/post_linkage.py`
+- `run(conn, config)` — filters scored pairs by thresholds, adds `match_rank` and `is_best_match`, applies optional QUALIFY clause, writes `out.linkage_results`
+
+### `pipeline.py`
+- `run_pipeline(config, conn=None, progress=noop)` — file-based entry: loads datasets via connectors, calls all stages, exports if configured
+- `run_pipeline_from_dataframes(df_a, df_b, config, conn=None, progress=noop)` — bypasses connectors; registers DataFrames directly as `lnk.stg_a` / `lnk.stg_b`, then calls same stages
+- `main()` — CLI entry point; parses args, calls `run_pipeline`
+
+### `app/main.py`
+- Streamlit GUI with 4 tabs
+- `_render_dataset_tab(prefix, label)` — tab renderer for dataset config
+- Settings tab: sliders for all thresholds
+- Run tab: builds `AppConfig` from `st.session_state`, calls `run_pipeline_from_dataframes`, shows metrics + filterable results table + download buttons
+
+---
+
+## Key Implementation Decisions
+
+**Why DuckDB?**
+In-memory columnar SQL engine with Python bindings. Handles the full pipeline as SQL transformations without intermediate file I/O. Supports fuzzy functions (`jaro_winkler_similarity`), QUALIFY clause, and efficient GROUP BY / ROW_NUMBER.
+
+**Why log-odds (not probability scores)?**
+Log-odds weights are additive across independent fields, making total_weight directly interpretable: each field's contribution is visible, and tuning one field doesn't require rescaling others.
+
+**Why 4 blocking rules?**
+Each rule targets a different data quality failure mode:
+- Rule 1 (prefix match): general similarity
+- Rule 2 (first name + DOB): surname change recovery  
+- Rule 3 (last name + year-month): DOB typo recovery
+- Rule 4 (first + last, no DOB): missing DOB recovery
+
+**Why alphabet chunking?**
+Chunking Rule 1 by last-name prefix limits the A×B cross-join size per batch. Rules 2–4 use more selective exact-match joins that don't require chunking.
+
+**Why LEAST for UP?**
+UP represents "how often would two random different people match on this field." Using the rarer of the two datasets' frequencies is conservative — it avoids over-weighting agreement on fields that are common in one dataset but rare in the other.
+
+---
+
+## Feature Checklist
+
+### Input
+- [x] CSV source
+- [x] Excel source (xlsx, xls)
+- [x] Database source (via SQLAlchemy connection string)
+- [x] Named-field unique ID strategy
+- [x] Hash-based unique ID (MD5 and SHA256)
+- [x] Config-driven field mapping per dataset
+- [x] Optional fields (NULL → 0 weight)
+
+### Matching
+- [x] Fellegi-Sunter log-odds probabilistic model
+- [x] Jaro-Winkler string similarity for name and suburb fields
+- [x] DOB-specific scoring with partial-match interpolation
+- [x] Gender exact-match scoring
+- [x] 4-rule blocking with fuzzy gate
+- [x] Alphabet-chunked blocking (Rule 1)
+- [x] Relaxed fuzzy threshold for DOB-anchored rules
+
+### Output
+- [x] All pairs above threshold (not just best match)
+- [x] `match_rank` per A record
+- [x] `is_best_match` flag
+- [x] `confidence` band (HIGH/MEDIUM/LOW)
+- [x] Field-level similarity scores (`sim_*`)
+- [x] Field-level weight contributions (`wgt_*`)
+- [x] Optional `max_matches_per_a_record` cap
+- [x] CSV export
+- [x] Excel export
+
+### Interfaces
+- [x] CLI (`eii-link`)
+- [x] Python API (`run_pipeline`, `run_pipeline_from_dataframes`)
+- [x] Streamlit GUI
+
+---
+
+**Last Updated:** 2026-07-17
