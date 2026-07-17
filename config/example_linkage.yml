@@ -1,0 +1,129 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EII Flinking — example linkage configuration
+# Copy and adapt this file for each linkage job.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Dataset A ─────────────────────────────────────────────────────────────────
+dataset_a:
+  source_type: csv           # csv | excel | database
+
+  source:
+    file_path: data/set_a.csv
+    # sheet_name: Sheet1     # Excel only
+    # encoding: utf-8        # CSV only (default utf-8)
+
+    # Database (uncomment if source_type: database):
+    # connection_string: "postgresql://user:pass@host:5432/mydb"
+    # table_name: people_set_a
+    # query: "SELECT * FROM people WHERE extract_date = '2024-01-01'"
+
+  # How to derive a unique record identifier for this dataset.
+  unique_id:
+    strategy: named_field    # named_field | hash
+
+    # ── named_field: use an existing source column as the ID ──────────────
+    field_name: PersonID     # source column name (before mapping)
+
+    # ── hash: generate ID by hashing a combination of standard fields ──────
+    # strategy: hash
+    # hash_columns: [first_name, last_name, date_of_birth]
+    # hash_algorithm: md5    # md5 | sha256
+
+  # Map each standard pipeline field to the actual column name in the source.
+  # You only need to list fields that exist in your data.
+  # Fields not listed here will be treated as absent (NULL) during matching.
+  field_mapping:
+    first_name:    GivenName
+    last_name:     Surname
+    middle_name:   MiddleName      # optional — remove if not in your data
+    date_of_birth: DOB
+    gender:        Sex
+    address_line1: StreetAddress   # optional
+    address_suburb: Suburb         # optional
+    address_state: State           # optional
+    postcode:      Postcode        # optional
+
+  # Fields listed here will not penalise match scores when absent.
+  # All non-required fields should appear here if they may be sparse.
+  optional_fields:
+    - middle_name
+    - gender
+    - address_line1
+    - address_suburb
+    - address_state
+    - postcode
+
+
+# ── Dataset B ─────────────────────────────────────────────────────────────────
+dataset_b:
+  source_type: excel
+
+  source:
+    file_path: data/set_b.xlsx
+    sheet_name: People
+
+  unique_id:
+    strategy: hash
+    hash_columns: [first_name, last_name, date_of_birth]
+    hash_algorithm: md5
+
+  field_mapping:
+    first_name:    FirstName
+    last_name:     LastName
+    date_of_birth: BirthDate
+    gender:        GenderCode
+    address_suburb: City
+
+  optional_fields:
+    - middle_name
+    - gender
+    - address_line1
+    - address_suburb
+    - address_state
+    - postcode
+
+
+# ── Linkage behaviour ─────────────────────────────────────────────────────────
+linkage:
+  thresholds:
+    # Minimum total log-odds weight to accept a pair as a match.
+    # Typical values: 15–25 (loose) to 30–40 (strict).
+    total_weight_min: 20.0
+
+    # Confidence band boundaries (applied to total_weight in output).
+    confidence_high:   30.0
+    confidence_medium: 20.0
+
+    # Minimum Jaro-Winkler similarity for first and last name.
+    jw_first_name_min: 0.75
+    jw_last_name_min:  0.75
+
+    # Maximum B matches returned per A record.
+    # Set to 1 for best-match-only; remove (or null) for all above threshold.
+    max_matches_per_a_record: null
+
+  blocking:
+    # Last-name alphabet chunks processed in parallel.
+    alphabet_chunks: [AB, CD, EF, GH, IJ, KL, MN, OP, QR, ST, UV, WXYZ]
+    # Minimum JW similarity applied during the blocking fuzzy gate.
+    fuzzy_name_min: 0.85
+
+  # Override default P(agree | same person) per field.
+  # Defaults: first_name=0.90, last_name=0.92, date_of_birth=0.95,
+  #           gender=0.98, middle_name=0.85, address_suburb=0.82
+  # match_probabilities:
+  #   first_name: 0.88
+  #   last_name:  0.90
+
+
+# ── Output ────────────────────────────────────────────────────────────────────
+output:
+  format: csv              # csv | excel
+  file_path: results/linkage_results.csv
+  include_field_similarities: false  # set true to include sim_* columns
+
+
+# ── DuckDB ────────────────────────────────────────────────────────────────────
+duckdb:
+  database_path: ":memory:"   # use a file path to persist between runs
+  # database_path: .duckdb/linkage.duckdb
