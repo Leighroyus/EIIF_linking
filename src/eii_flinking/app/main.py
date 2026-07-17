@@ -54,6 +54,7 @@ from eii_flinking.schema import STANDARD_FIELDS, CONFIDENCE_HIGH_THRESHOLD, CONF
 _DEFAULTS: dict[str, Any] = {
     "a_df": None,
     "a_columns": [],
+    "a_filename": None,
     "a_mapping": {},
     "a_optional": [],
     "a_uid_strategy": "named_field",
@@ -61,6 +62,7 @@ _DEFAULTS: dict[str, Any] = {
     "a_uid_hash_cols": [],
     "b_df": None,
     "b_columns": [],
+    "b_filename": None,
     "b_mapping": {},
     "b_optional": [],
     "b_uid_strategy": "named_field",
@@ -99,52 +101,38 @@ _DISPLAY_NAMES = {
 _REQUIRED = {"first_name", "last_name"}  # id handled separately via uid config
 
 
-def _file_to_df(uploaded_path: str, source_type: str) -> tuple[pd.DataFrame, list[str]] | None:
-    """Read a file path (CSV or Excel) into a DataFrame, return (df, columns)."""
-    p = Path(uploaded_path)
-    if not p.exists():
-        st.error(f"File not found: {uploaded_path}")
-        return None
-    try:
-        if source_type == "csv":
-            df = pd.read_csv(p, dtype=str, keep_default_na=False)
-        else:
-            df = pd.read_excel(p, dtype=str, keep_default_na=False)
-        return df, list(df.columns)
-    except Exception as exc:
-        st.error(f"Could not read file: {exc}")
-        return None
-
-
 def _render_dataset_tab(prefix: str, label: str) -> None:
     """Render the full configuration tab for one dataset (A or B)."""
-    st.subheader(f"Source file — Dataset {label}")
+    st.subheader(f"Dataset {label} — Source File")
 
-    source_type = st.radio(
-        "File type",
-        ["CSV", "Excel"],
-        key=f"{prefix}_source_type",
-        horizontal=True,
-    )
-    file_path = st.text_input(
-        "File path",
-        placeholder=f"/path/to/dataset_{label.lower()}.csv",
-        key=f"{prefix}_file_path",
-        help="Enter the full path to your file, or browse using your file manager.",
+    uploaded = st.file_uploader(
+        f"Upload Dataset {label} (CSV or Excel)",
+        type=["csv", "xlsx", "xls"],
+        key=f"{prefix}_uploader",
     )
 
-    load_col, _ = st.columns([1, 3])
-    with load_col:
-        load_clicked = st.button(f"Load Dataset {label}", key=f"{prefix}_load")
+    if uploaded is not None:
+        # Only re-read if a new file was selected
+        if uploaded.name != st.session_state.get(f"{prefix}_filename"):
+            ext = Path(uploaded.name).suffix.lower()
+            try:
+                if ext == ".csv":
+                    df = pd.read_csv(uploaded, dtype=str, keep_default_na=False)
+                else:
+                    df = pd.read_excel(uploaded, dtype=str, keep_default_na=False)
+                st.session_state[f"{prefix}_df"] = df
+                st.session_state[f"{prefix}_columns"] = list(df.columns)
+                st.session_state[f"{prefix}_filename"] = uploaded.name
+                st.session_state[f"{prefix}_mapping"] = {}
+            except Exception as exc:
+                st.error(f"Could not read file: {exc}")
 
-    if load_clicked and file_path:
-        result = _file_to_df(file_path, source_type.lower())
-        if result:
-            df, cols = result
-            st.session_state[f"{prefix}_df"] = df
-            st.session_state[f"{prefix}_columns"] = cols
-            st.session_state[f"{prefix}_mapping"] = {}
-            st.success(f"Loaded {len(df):,} rows × {len(cols)} columns.")
+        df_loaded = st.session_state[f"{prefix}_df"]
+        if df_loaded is not None:
+            st.success(
+                f"Loaded **{st.session_state[f'{prefix}_filename']}**: "
+                f"{len(df_loaded):,} rows × {len(df_loaded.columns)} columns"
+            )
 
     df = st.session_state[f"{prefix}_df"]
     cols = st.session_state[f"{prefix}_columns"]
