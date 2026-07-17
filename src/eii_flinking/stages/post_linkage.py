@@ -30,8 +30,10 @@ def run(conn: duckdb.DuckDBPyConnection, config: LinkageConfig) -> None:
     conf_med = thresholds.confidence_medium
     max_matches = thresholds.max_matches_per_a_record
 
+    # QUALIFY must live in the same SELECT that computes the window function.
     qualify_clause = (
-        f"QUALIFY match_rank <= {max_matches}" if max_matches is not None else ""
+        f"QUALIFY ROW_NUMBER() OVER (PARTITION BY sp.a_id ORDER BY sp.total_weight DESC) <= {max_matches}"
+        if max_matches is not None else ""
     )
 
     conn.execute(f"""
@@ -80,10 +82,10 @@ def run(conn: duckdb.DuckDBPyConnection, config: LinkageConfig) -> None:
             WHERE sp.total_weight >= {total_min}
               AND sp.jw_fn >= {jw_fn_min}
               AND sp.jw_ln >= {jw_ln_min}
+            {qualify_clause}
         )
         SELECT
             *,
             match_rank = 1 AS is_best_match
         FROM ranked
-        {qualify_clause}
     """)
