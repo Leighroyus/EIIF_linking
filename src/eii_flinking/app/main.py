@@ -60,6 +60,7 @@ _DEFAULTS: dict[str, Any] = {
     "a_uid_strategy": "named_field",
     "a_uid_field": None,
     "a_uid_hash_cols": [],
+    "a_df_mapped": None,
     "b_df": None,
     "b_columns": [],
     "b_filename": None,
@@ -68,6 +69,7 @@ _DEFAULTS: dict[str, Any] = {
     "b_uid_strategy": "named_field",
     "b_uid_field": None,
     "b_uid_hash_cols": [],
+    "b_df_mapped": None,
     "total_weight_min": CONFIDENCE_MEDIUM_THRESHOLD,
     "confidence_high": CONFIDENCE_HIGH_THRESHOLD,
     "confidence_medium": CONFIDENCE_MEDIUM_THRESHOLD,
@@ -408,6 +410,8 @@ with tab_run:
                         progress=_progress,
                     )
                     st.session_state["results_df"] = results
+                    st.session_state["a_df_mapped"] = df_a_mapped
+                    st.session_state["b_df_mapped"] = df_b_mapped
                     st.session_state["run_log"] = _run_log
                     status_placeholder.success(f"Complete — {len(results):,} matches found.")
 
@@ -421,59 +425,149 @@ with tab_run:
         st.divider()
         st.subheader("Results")
 
+        a_df_mapped: pd.DataFrame | None = st.session_state.get("a_df_mapped")
+        b_df_mapped: pd.DataFrame | None = st.session_state.get("b_df_mapped")
+
         # Summary metrics
+        n_a_total = len(a_df_mapped) if a_df_mapped is not None else "—"
+        n_b_total = len(b_df_mapped) if b_df_mapped is not None else "—"
+        n_a_matched = results_df["a_id"].nunique()
+        n_b_matched = results_df["b_id"].nunique()
+
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Total matches", f"{len(results_df):,}")
+        m1.metric("Total match pairs", f"{len(results_df):,}")
         m2.metric("HIGH confidence", f"{(results_df['confidence'] == 'HIGH').sum():,}")
-        m3.metric("MEDIUM confidence", f"{(results_df['confidence'] == 'MEDIUM').sum():,}")
-        m4.metric("Unique A records matched", f"{results_df['a_id'].nunique():,}")
+        m3.metric(
+            "Set A matched",
+            f"{n_a_matched:,} / {n_a_total:,}" if isinstance(n_a_total, int) else f"{n_a_matched:,}",
+        )
+        m4.metric(
+            "Set B matched",
+            f"{n_b_matched:,} / {n_b_total:,}" if isinstance(n_b_total, int) else f"{n_b_matched:,}",
+        )
 
-        # Filters
-        fc1, fc2, fc3 = st.columns(3)
-        with fc1:
-            conf_filter = st.multiselect(
-                "Confidence",
-                options=["HIGH", "MEDIUM", "LOW"],
-                default=["HIGH", "MEDIUM", "LOW"],
-                key="conf_filter",
-            )
-        with fc2:
-            best_only = st.checkbox("Best match only", value=False, key="best_only_filter")
-        with fc3:
-            min_weight_display = st.number_input(
-                "Min weight to display",
-                min_value=0.0,
-                value=float(st.session_state["total_weight_min"]),
-                step=1.0,
-                key="min_weight_display",
-            )
+        # View selector
+        st.divider()
+        view_mode = st.radio(
+            "View",
+            ["Matched pairs", "All Set A records", "All Set B records"],
+            horizontal=True,
+            key="view_mode",
+            help=(
+                "Matched pairs: only records that linked. "
+                "All Set A / All Set B: every record in that dataset, "
+                "showing the best match where found and highlighting unmatched rows."
+            ),
+        )
 
-        display_df = results_df[results_df["confidence"].isin(conf_filter)]
-        display_df = display_df[display_df["total_weight"] >= min_weight_display]
-        if best_only:
-            display_df = display_df[display_df["is_best_match"]]
+        if view_mode == "Matched pairs":
+            # ── Filters ───────────────────────────────────────────────────────
+            fc1, fc2, fc3 = st.columns(3)
+            with fc1:
+                conf_filter = st.multiselect(
+                    "Confidence",
+                    options=["HIGH", "MEDIUM", "LOW"],
+                    default=["HIGH", "MEDIUM", "LOW"],
+                    key="conf_filter",
+                )
+            with fc2:
+                best_only = st.checkbox("Best match only", value=False, key="best_only_filter")
+            with fc3:
+                min_weight_display = st.number_input(
+                    "Min weight to display",
+                    min_value=0.0,
+                    value=float(st.session_state["total_weight_min"]),
+                    step=1.0,
+                    key="min_weight_display",
+                )
 
-        st.dataframe(display_df, use_container_width=True, height=450)
+            display_df = results_df[results_df["confidence"].isin(conf_filter)]
+            display_df = display_df[display_df["total_weight"] >= min_weight_display]
+            if best_only:
+                display_df = display_df[display_df["is_best_match"]]
+            download_name = "linkage_matched_pairs"
 
-        # Downloads
-        dl1, dl2 = st.columns(2)
-        with dl1:
-            csv_bytes = display_df.to_csv(index=False).encode()
-            st.download_button(
-                "Download filtered results (CSV)",
-                data=csv_bytes,
-                file_name="linkage_results_filtered.csv",
-                mime="text/csv",
-            )
-        with dl2:
-            buf = io.BytesIO()
-            results_df.to_excel(buf, index=False)
-            st.download_button(
-                "Download all results (Excel)",
-                data=buf.getvalue(),
-                file_name="linkage_results_all.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
+        elif view_mode == "All Set A records":
+            if a_df_mapped is None:
+                st.warning("Set A data not available — rerun the pipeline.")
+                display_df = pd.DataFrame()
+            else:
+                best = (
+                    results_df[results_df["is_best_match"]]
+                    [[
+                        "a_id", "b_id", "total_weight", "confidence",
+                        "b_first_name", "b_last_name", "b_dob", "b_gender", "b_suburb",
+                    ]]
+                    .copy()
+                )
+                a_view = (
+                    a_df_mapped
+                    [["id", "first_name", "last_name", "date_of_birth", "gender", "address_suburb"]]
+                    .rename(columns={
+                        "id": "a_id",
+                        "first_name": "a_first_name",
+                        "last_name": "a_last_name",
+                        "date_of_birth": "a_dob",
+                        "gender": "a_gender",
+                        "address_suburb": "a_suburb",
+                    })
+                )
+                display_df = a_view.merge(best, on="a_id", how="left")
+                display_df.insert(1, "matched", display_df["b_id"].notna())
+                display_df = display_df.sort_values(["matched", "total_weight"], ascending=[False, False])
+            download_name = "linkage_all_set_a"
+
+        else:  # All Set B records
+            if b_df_mapped is None:
+                st.warning("Set B data not available — rerun the pipeline.")
+                display_df = pd.DataFrame()
+            else:
+                best = (
+                    results_df[results_df["is_best_match"]]
+                    [[
+                        "b_id", "a_id", "total_weight", "confidence",
+                        "a_first_name", "a_last_name", "a_dob", "a_gender", "a_suburb",
+                    ]]
+                    .copy()
+                )
+                b_view = (
+                    b_df_mapped
+                    [["id", "first_name", "last_name", "date_of_birth", "gender", "address_suburb"]]
+                    .rename(columns={
+                        "id": "b_id",
+                        "first_name": "b_first_name",
+                        "last_name": "b_last_name",
+                        "date_of_birth": "b_dob",
+                        "gender": "b_gender",
+                        "address_suburb": "b_suburb",
+                    })
+                )
+                display_df = b_view.merge(best, on="b_id", how="left")
+                display_df.insert(1, "matched", display_df["a_id"].notna())
+                display_df = display_df.sort_values(["matched", "total_weight"], ascending=[False, False])
+            download_name = "linkage_all_set_b"
+
+        if len(display_df) > 0:
+            st.dataframe(display_df, use_container_width=True, height=450)
+
+            dl1, dl2 = st.columns(2)
+            with dl1:
+                csv_bytes = display_df.to_csv(index=False).encode()
+                st.download_button(
+                    "Download (CSV)",
+                    data=csv_bytes,
+                    file_name=f"{download_name}.csv",
+                    mime="text/csv",
+                )
+            with dl2:
+                buf = io.BytesIO()
+                display_df.to_excel(buf, index=False)
+                st.download_button(
+                    "Download (Excel)",
+                    data=buf.getvalue(),
+                    file_name=f"{download_name}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
 
     elif results_df is not None and len(results_df) == 0:
         st.info("No matches found above the configured thresholds. Try lowering the minimum weight.")
