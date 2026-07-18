@@ -105,6 +105,15 @@ _DISPLAY_NAMES = {
 }
 _REQUIRED = {"first_name", "last_name"}  # id handled separately via uid config
 
+# Columns stripped from exports when the user ticks "Omit PII columns".
+# Uses a superset of names across all view modes so drop() is safe regardless.
+_PII_COLS = frozenset({
+    "a_first_name", "a_middle_name", "a_last_name", "a_dob", "a_gender",
+    "a_address_line1", "a_suburb", "a_state", "a_address_state", "a_postcode",
+    "b_first_name", "b_middle_name", "b_last_name", "b_dob", "b_gender",
+    "b_address_line1", "b_suburb", "b_state", "b_address_state", "b_postcode",
+})
+
 
 def _render_dataset_tab(prefix: str, label: str) -> None:
     """Render the full configuration tab for one dataset (A or B)."""
@@ -508,26 +517,28 @@ with tab_run:
                 st.warning("Set A data not available — rerun the pipeline.")
                 display_df = pd.DataFrame()
             else:
-                # Best B match per A record (already computed as is_best_match)
-                best = (
-                    results_df[results_df["is_best_match"]]
-                    [[
-                        "a_id", "b_id", "total_weight", "confidence",
-                        "b_first_name", "b_last_name", "b_dob", "b_gender", "b_suburb",
-                    ]]
-                    .copy()
-                )
-                # lnk.dataset_a has the real computed IDs matching results_df["a_id"]
+                # Best B match per A record (is_best_match), all available B columns
+                _a_match_cols = [c for c in [
+                    "a_id", "b_id", "total_weight", "confidence", "match_rank",
+                    "b_first_name", "b_middle_name", "b_last_name",
+                    "b_dob", "b_gender", "b_suburb",
+                ] if c in results_df.columns]
+                best = results_df[results_df["is_best_match"]][_a_match_cols].copy()
+
+                # lnk.dataset_a has all standard fields with real computed IDs
                 a_view = (
-                    a_normalised
-                    [["id", "first_name", "last_name", "date_of_birth", "gender", "address_suburb"]]
+                    a_normalised[list(STANDARD_FIELDS)]
                     .rename(columns={
                         "id": "a_id",
                         "first_name": "a_first_name",
+                        "middle_name": "a_middle_name",
                         "last_name": "a_last_name",
                         "date_of_birth": "a_dob",
                         "gender": "a_gender",
+                        "address_line1": "a_address_line1",
                         "address_suburb": "a_suburb",
+                        "address_state": "a_address_state",
+                        "postcode": "a_postcode",
                     })
                 )
                 display_df = a_view.merge(best, on="a_id", how="left")
@@ -544,28 +555,34 @@ with tab_run:
                 st.warning("Set B data not available — rerun the pipeline.")
                 display_df = pd.DataFrame()
             else:
-                # Best A match per B record: sort by weight, one row per b_id
+                # Best A match per B record (highest weight, one row per b_id)
+                _b_match_cols = [c for c in [
+                    "b_id", "a_id", "total_weight", "confidence",
+                    "a_first_name", "a_middle_name", "a_last_name",
+                    "a_dob", "a_gender", "a_suburb",
+                ] if c in results_df.columns]
                 best = (
                     results_df
                     .sort_values("total_weight", ascending=False)
                     .drop_duplicates(subset=["b_id"])
-                    [[
-                        "b_id", "a_id", "total_weight", "confidence",
-                        "a_first_name", "a_last_name", "a_dob", "a_gender", "a_suburb",
-                    ]]
+                    [_b_match_cols]
                     .copy()
                 )
-                # lnk.dataset_b has the real computed IDs matching results_df["b_id"]
+
+                # lnk.dataset_b has all standard fields with real computed IDs
                 b_view = (
-                    b_normalised
-                    [["id", "first_name", "last_name", "date_of_birth", "gender", "address_suburb"]]
+                    b_normalised[list(STANDARD_FIELDS)]
                     .rename(columns={
                         "id": "b_id",
                         "first_name": "b_first_name",
+                        "middle_name": "b_middle_name",
                         "last_name": "b_last_name",
                         "date_of_birth": "b_dob",
                         "gender": "b_gender",
+                        "address_line1": "b_address_line1",
                         "address_suburb": "b_suburb",
+                        "address_state": "b_address_state",
+                        "postcode": "b_postcode",
                     })
                 )
                 display_df = b_view.merge(best, on="b_id", how="left")
@@ -580,22 +597,36 @@ with tab_run:
         if len(display_df) > 0:
             st.dataframe(display_df, use_container_width=True, height=450)
 
+            omit_pii = st.checkbox(
+                "Omit PII columns from export (names, date of birth, gender, address)",
+                value=False,
+                key="omit_pii",
+                help=(
+                    "Removes personal identifiable information from the downloaded file. "
+                    "Keeps record IDs, match weights, confidence, and similarity scores."
+                ),
+            )
+            export_df = (
+                display_df.drop(columns=[c for c in _PII_COLS if c in display_df.columns])
+                if omit_pii else display_df
+            )
+            export_name = f"{download_name}_no_pii" if omit_pii else download_name
+
             dl1, dl2 = st.columns(2)
             with dl1:
-                csv_bytes = display_df.to_csv(index=False).encode()
                 st.download_button(
                     "Download (CSV)",
-                    data=csv_bytes,
-                    file_name=f"{download_name}.csv",
+                    data=export_df.to_csv(index=False).encode(),
+                    file_name=f"{export_name}.csv",
                     mime="text/csv",
                 )
             with dl2:
                 buf = io.BytesIO()
-                display_df.to_excel(buf, index=False)
+                export_df.to_excel(buf, index=False)
                 st.download_button(
                     "Download (Excel)",
                     data=buf.getvalue(),
-                    file_name=f"{download_name}.xlsx",
+                    file_name=f"{export_name}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
 
