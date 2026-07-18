@@ -23,8 +23,8 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
 Or with conda:
 ```bash
-conda create -n eii-flinking python=3.12
-conda activate eii-flinking
+conda create -n eiif-linking python=3.12
+conda activate eiif-linking
 ```
 
 ### 3. Install Package and Dependencies
@@ -33,7 +33,7 @@ conda activate eii-flinking
 pip install -e .
 ```
 
-This installs the `eii-link` CLI and all required dependencies:
+This installs the `eiif-link` CLI and all required dependencies:
 - `duckdb >= 1.1.0`
 - `pandas >= 2.2.0`
 - `openpyxl >= 3.1.0` (Excel support)
@@ -47,7 +47,7 @@ This installs the `eii-link` CLI and all required dependencies:
 ### 4. Verify Installation
 
 ```bash
-eii-link --help
+eiif-link --help
 ```
 
 ## Project Structure
@@ -58,7 +58,7 @@ EIIFlinking/
 │   └── example_linkage.yml       # Annotated configuration template
 ├── docs/                         # Documentation
 ├── src/
-│   └── eii_flinking/
+│   └── eiif_linking/
 │       ├── __init__.py
 │       ├── schema.py             # Standard field list and defaults
 │       ├── config.py             # YAML → dataclass configuration loading
@@ -165,12 +165,12 @@ duckdb:
 ### CLI
 
 ```bash
-eii-link config/my_linkage.yml
+eiif-link config/my_linkage.yml
 ```
 
 To skip file export (results still available in DuckDB):
 ```bash
-eii-link config/my_linkage.yml --no-export
+eiif-link config/my_linkage.yml --no-export
 ```
 
 ### Streamlit GUI
@@ -178,7 +178,7 @@ eii-link config/my_linkage.yml --no-export
 No config file required — configure everything through the browser:
 
 ```bash
-streamlit run src/eii_flinking/app/main.py
+streamlit run src/eiif_linking/app/main.py
 ```
 
 Four tabs:
@@ -194,7 +194,7 @@ Four tabs:
 ### Python API
 
 ```python
-from eii_flinking.pipeline import run_pipeline
+from eiif_linking.pipeline import run_pipeline
 
 # Returns a pandas DataFrame of results
 results_df = run_pipeline("config/my_linkage.yml")
@@ -204,8 +204,8 @@ print(results_df.head())
 For programmatic use with in-memory DataFrames (e.g., when data is already loaded):
 
 ```python
-from eii_flinking.pipeline import run_pipeline_from_dataframes
-from eii_flinking.config import load_config
+from eiif_linking.pipeline import run_pipeline_from_dataframes
+from eiif_linking.config import load_config
 
 config = load_config("config/my_linkage.yml")
 results_df = run_pipeline_from_dataframes(df_a, df_b, config)
@@ -264,11 +264,11 @@ conn.close()
 
 ## Troubleshooting
 
-### `eii-link: command not found`
+### `eiif-link: command not found`
 The package was not installed. Run `pip install -e .` and ensure the virtual environment is activated.
 
 ### `FileNotFoundError` for CSV/Excel
-Check that file paths in the config are correct relative to the directory where you run `eii-link`. Use absolute paths if unsure.
+Check that file paths in the config are correct relative to the directory where you run `eiif-link`. Use absolute paths if unsure.
 
 ### Column mapping errors
 Verify `field_mapping` values match actual column names. Print them with:

@@ -8,7 +8,7 @@ All core features implemented and documented.
 
 ## Deliverables
 
-### Core Package (`src/eii_flinking/`)
+### Core Package (`src/eiif_linking/`)
 
 **Schema and configuration (2 modules)**
 - [x] `schema.py` — standard field definitions, required fields, confidence thresholds, default match probabilities
@@ -100,7 +100,7 @@ All core features implemented and documented.
 - [x] Export to Excel
 
 ### Interfaces
-- [x] CLI: `eii-link config.yml`
+- [x] CLI: `eiif-link config.yml`
 - [x] Python API: `run_pipeline()`, `run_pipeline_from_dataframes()`
 - [x] Streamlit GUI with drag-and-drop file upload, interactive configuration, live progress, and three result views (matched pairs / all Set A / all Set B)
 - [x] All Set A / All Set B view: shows every record including unmatched, with `matched` flag

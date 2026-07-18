@@ -79,7 +79,7 @@ duckdb:
 ### Step 3: Run Pipeline
 
 ```bash
-eii-link config/my_linkage.yml
+eiif-link config/my_linkage.yml
 ```
 
 ### Step 4: View Results
@@ -100,7 +100,7 @@ print(results[["a_id", "b_id", "total_weight", "confidence", "match_rank", "is_b
 No config file needed — configure everything through the browser:
 
 ```bash
-streamlit run src/eii_flinking/app/main.py
+streamlit run src/eiif_linking/app/main.py
 ```
 
 Four tabs: **Dataset A** → **Dataset B** → **Linkage Settings** → **Run & Results**

@@ -1,9 +1,9 @@
 # EIIF Linking — File Manifest
 
-## Source Code (`src/eii_flinking/`)
+## Source Code (`src/eiif_linking/`)
 
 ```
-src/eii_flinking/
+src/eiif_linking/
 ├── __init__.py
 ├── schema.py                     # STANDARD_FIELDS, REQUIRED_FIELDS, DEFAULT_MATCH_PROBS
 ├── config.py                     # AppConfig dataclasses + load_config()
@@ -71,7 +71,7 @@ pyproject.toml                    # Package definition, dependencies, CLI entry 
 ## File Dependency Graph
 
 ```
-eii-link (CLI)
+eiif-link (CLI)
     ↓
 pipeline.py
     ├── config.py
@@ -146,7 +146,7 @@ When setting up a new linkage job:
 - [ ] List sparse/optional fields in `optional_fields`
 - [ ] Adjust thresholds if needed (start with defaults)
 - [ ] Set `output.file_path` if you want a CSV export
-- [ ] Run: `eii-link config/my_linkage.yml`
+- [ ] Run: `eiif-link config/my_linkage.yml`
 
 ---
 

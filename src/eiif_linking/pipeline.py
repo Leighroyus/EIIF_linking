@@ -156,7 +156,7 @@ def _export_excel(df: pd.DataFrame, path: str) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        prog="eii-link",
+        prog="eiif-link",
         description="Cross-dataset record linkage between Set A and Set B.",
     )
     parser.add_argument("config", help="Path to linkage YAML config file")

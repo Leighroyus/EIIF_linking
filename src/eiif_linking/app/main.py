@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 """
-EII Flinking — Streamlit GUI
-Run with:  streamlit run src/eii_flinking/app/main.py
+EIIF Linking — Streamlit GUI
+Run with:  streamlit run src/eiif_linking/app/main.py
 """
 
 import io
@@ -24,7 +24,7 @@ import streamlit as st
 # Page config
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="EII Flinking — Record Linkage",
+    page_title="EIIF Linking — Record Linkage",
     page_icon="🔗",
     layout="wide",
 )
@@ -32,8 +32,8 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # Package imports (absolute so they work with or without pip install -e .)
 # ---------------------------------------------------------------------------
-from eii_flinking.duckdb.connection import connect as _duckdb_connect
-from eii_flinking.config import (
+from eiif_linking.duckdb.connection import connect as _duckdb_connect
+from eiif_linking.config import (
     AppConfig,
     BlockingConfig,
     DatasetConfig,
@@ -44,10 +44,10 @@ from eii_flinking.config import (
     ThresholdConfig,
     UniqueIdConfig,
 )
-from eii_flinking.connectors.csv_connector import CsvConnector
-from eii_flinking.connectors.excel_connector import ExcelConnector
-from eii_flinking.pipeline import run_pipeline_from_dataframes
-from eii_flinking.schema import STANDARD_FIELDS, CONFIDENCE_HIGH_THRESHOLD, CONFIDENCE_MEDIUM_THRESHOLD
+from eiif_linking.connectors.csv_connector import CsvConnector
+from eiif_linking.connectors.excel_connector import ExcelConnector
+from eiif_linking.pipeline import run_pipeline_from_dataframes
+from eiif_linking.schema import STANDARD_FIELDS, CONFIDENCE_HIGH_THRESHOLD, CONFIDENCE_MEDIUM_THRESHOLD
 
 # ---------------------------------------------------------------------------
 # Session-state defaults
@@ -274,7 +274,7 @@ def _apply_mapping_to_df(df: pd.DataFrame, config: DatasetConfig) -> pd.DataFram
 # ---------------------------------------------------------------------------
 # Main tabs
 # ---------------------------------------------------------------------------
-st.title("🔗 EII Flinking — Record Linkage")
+st.title("🔗 EIIF Linking — Record Linkage")
 st.caption(
     "Link people across two independent datasets using probabilistic name, "
     "date-of-birth, and address matching."

@@ -22,7 +22,7 @@ EIIF Linking performs cross-dataset probabilistic record linkage: given two inde
 ## Directory Structure
 
 ```
-src/eii_flinking/
+src/eiif_linking/
 ├── __init__.py
 ├── schema.py                 # Standard field list, REQUIRED_FIELDS, defaults
 ├── config.py                 # AppConfig dataclasses + load_config()
@@ -344,7 +344,7 @@ String similarity metric that weights prefix agreements more heavily. Range: 0 (
 
 ### Soundex-Like Key (SLK)
 
-`slk.py` implements the healthcare standard SLK-581, derived from surname (chars 2-4 phonetically encoded), first name (chars 1-3), DOB (YYYYMMDD), and gender (1/2/9). Available for downstream use via `from eii_flinking.slk import build_slk`.
+`slk.py` implements the healthcare standard SLK-581, derived from surname (chars 2-4 phonetically encoded), first name (chars 1-3), DOB (YYYYMMDD), and gender (1/2/9). Available for downstream use via `from eiif_linking.slk import build_slk`.
 
 ---
 
@@ -353,14 +353,14 @@ String similarity metric that weights prefix agreements more heavily. Range: 0 (
 ### CLI
 
 ```bash
-eii-link config/my_linkage.yml
-eii-link config/my_linkage.yml --no-export
+eiif-link config/my_linkage.yml
+eiif-link config/my_linkage.yml --no-export
 ```
 
 ### Python API
 
 ```python
-from eii_flinking.pipeline import run_pipeline, run_pipeline_from_dataframes
+from eiif_linking.pipeline import run_pipeline, run_pipeline_from_dataframes
 
 # File-based (reads source files from config)
 results_df = run_pipeline("config/my_linkage.yml")
@@ -374,7 +374,7 @@ Both return a `pandas.DataFrame` of `out.linkage_results`.
 ### Streamlit GUI
 
 ```bash
-streamlit run src/eii_flinking/app/main.py
+streamlit run src/eiif_linking/app/main.py
 ```
 
 Tab 1 — **Dataset A**: drag-and-drop / Browse file uploader (CSV, xlsx, xls); auto-loads on selection; preview; unique ID strategy (named field selector or standard-field hash multiselect); field mapping selectboxes with auto-hint from column names

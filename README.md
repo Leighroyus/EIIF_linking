@@ -30,7 +30,7 @@ cp config/example_linkage.yml config/my_linkage.yml
 ### 3. Run
 
 ```bash
-eii-link config/my_linkage.yml
+eiif-link config/my_linkage.yml
 ```
 
 ### 4. View Results
@@ -44,7 +44,7 @@ print(results[["a_id", "b_id", "total_weight", "confidence", "match_rank"]].head
 Or use the interactive GUI:
 
 ```bash
-streamlit run src/eii_flinking/app/main.py
+streamlit run src/eiif_linking/app/main.py
 ```
 
 ## Directory Structure
@@ -54,7 +54,7 @@ EIIFlinking/
 ├── config/
 │   └── example_linkage.yml       # Annotated configuration template
 ├── docs/                         # Documentation
-├── src/eii_flinking/
+├── src/eiif_linking/
 │   ├── schema.py                 # Standard field definitions and defaults
 │   ├── config.py                 # YAML → dataclass configuration loading
 │   ├── pipeline.py               # Pipeline entry points (CLI + Python API)
@@ -165,14 +165,14 @@ NULL in either record → field weight = 0.0 (no evidence either way, no penalty
 ## CLI
 
 ```bash
-eii-link config/my_linkage.yml           # run pipeline and export results
-eii-link config/my_linkage.yml --no-export  # skip CSV export
+eiif-link config/my_linkage.yml           # run pipeline and export results
+eiif-link config/my_linkage.yml --no-export  # skip CSV export
 ```
 
 ## Python API
 
 ```python
-from eii_flinking.pipeline import run_pipeline, run_pipeline_from_dataframes
+from eiif_linking.pipeline import run_pipeline, run_pipeline_from_dataframes
 
 # File-based — returns pandas DataFrame
 results_df = run_pipeline("config/my_linkage.yml")
@@ -184,7 +184,7 @@ results_df = run_pipeline_from_dataframes(df_a, df_b, config)
 ## Streamlit GUI
 
 ```bash
-streamlit run src/eii_flinking/app/main.py
+streamlit run src/eiif_linking/app/main.py
 ```
 
 Four tabs: **Dataset A** → **Dataset B** → **Linkage Settings** → **Run & Results**

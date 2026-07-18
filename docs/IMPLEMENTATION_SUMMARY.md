@@ -60,9 +60,9 @@ Three ways to run the pipeline:
 
 | Interface | Entry point | Use case |
 |-----------|-------------|----------|
-| CLI | `eii-link config.yml` | Automation, scripts |
+| CLI | `eiif-link config.yml` | Automation, scripts |
 | Python API | `run_pipeline()` / `run_pipeline_from_dataframes()` | Integration, Jupyter |
-| Streamlit GUI | `streamlit run src/eii_flinking/app/main.py` | Interactive exploration |
+| Streamlit GUI | `streamlit run src/eiif_linking/app/main.py` | Interactive exploration |
 
 ---
 
@@ -190,7 +190,7 @@ UP represents "how often would two random different people match on this field."
 - [x] Excel export
 
 ### Interfaces
-- [x] CLI (`eii-link`)
+- [x] CLI (`eiif-link`)
 - [x] Python API (`run_pipeline`, `run_pipeline_from_dataframes`)
 - [x] Streamlit GUI
 

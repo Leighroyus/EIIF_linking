@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "eii-flinking"
+name = "eiif-linking"
 version = "0.1.0"
 description = "Cross-dataset record linkage — matches people across two independent data extracts"
 requires-python = ">=3.12"
@@ -26,10 +26,10 @@ dev = [
 ]
 
 [project.scripts]
-eii-link = "eii_flinking.pipeline:main"
+eiif-link = "eiif_linking.pipeline:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/eii_flinking"]
+packages = ["src/eiif_linking"]
 
 [tool.ruff]
 line-length = 100
