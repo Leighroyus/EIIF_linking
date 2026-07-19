@@ -35,23 +35,25 @@ dataset_a:
   field_mapping:
     first_name:    GivenName
     last_name:     Surname
-    middle_name:   MiddleName      # optional — remove if not in your data
+    middle_name:   MiddleName          # optional — remove if not in your data
     date_of_birth: DOB
     gender:        Sex
-    address_line1: StreetAddress   # optional
-    address_suburb: Suburb         # optional
-    address_state: State           # optional
-    postcode:      Postcode        # optional
+    address_full:          FullAddress  # optional — auto-parsed into components if mapped
+    address_street_number: HouseNo      # optional — use instead of address_full if pre-split
+    address_street_name:   StreetName   # optional
+    address_town_or_suburb: Suburb      # optional
+    address_lga:           LGA          # optional — auto-populated from suburb if absent
 
   # Fields listed here will not penalise match scores when absent.
   # All non-required fields should appear here if they may be sparse.
   optional_fields:
     - middle_name
     - gender
-    - address_line1
-    - address_suburb
-    - address_state
-    - postcode
+    - address_full
+    - address_street_number
+    - address_street_name
+    - address_town_or_suburb
+    - address_lga
 
 
 # ── Dataset B ─────────────────────────────────────────────────────────────────
@@ -72,15 +74,16 @@ dataset_b:
     last_name:     LastName
     date_of_birth: BirthDate
     gender:        GenderCode
-    address_suburb: City
+    address_town_or_suburb: City
 
   optional_fields:
     - middle_name
     - gender
-    - address_line1
-    - address_suburb
-    - address_state
-    - postcode
+    - address_full
+    - address_street_number
+    - address_street_name
+    - address_town_or_suburb
+    - address_lga
 
 
 # ── Linkage behaviour ─────────────────────────────────────────────────────────
@@ -110,7 +113,9 @@ linkage:
 
   # Override default P(agree | same person) per field.
   # Defaults: first_name=0.90, last_name=0.92, date_of_birth=0.95,
-  #           gender=0.98, middle_name=0.85, address_suburb=0.82
+  #           gender=0.98, middle_name=0.85,
+  #           address_street_number=0.90, address_street_name=0.85,
+  #           address_town_or_suburb=0.80, address_lga=0.75
   # match_probabilities:
   #   first_name: 0.88
   #   last_name:  0.90

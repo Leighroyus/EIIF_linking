@@ -27,6 +27,7 @@ src/eiif_linking/
 ├── schema.py                 # Standard field list, REQUIRED_FIELDS, defaults
 ├── config.py                 # AppConfig dataclasses + load_config()
 ├── pipeline.py               # run_pipeline() / run_pipeline_from_dataframes() / main()
+├── address_parser.py         # Address parsing + LGA lookup (uses data/suburb_lga.csv)
 ├── slk.py                    # Soundex-like key generation
 ├── duckdb/
 │   └── connection.py         # DuckDB connection; creates lnk/wrk/out schemas
@@ -37,13 +38,16 @@ src/eiif_linking/
 │   ├── database_connector.py
 │   └── factory.py            # get_connector() / load_dataset()
 ├── stages/
-│   ├── ingest.py             # Normalise raw → lnk.dataset_a / lnk.dataset_b
+│   ├── ingest.py             # Normalise raw → lnk.dataset_a / lnk.dataset_b (calls address_parser)
 │   ├── proportions.py        # Field frequency tables (lnk.prop_*)
 │   ├── blocking.py           # Candidate pairs → wrk.candidate_pairs
 │   ├── scoring.py            # Log-odds weights → wrk.scored_pairs
 │   └── post_linkage.py       # Filter, rank → out.linkage_results
 └── app/
     └── main.py               # Streamlit GUI (4 tabs)
+
+data/
+└── suburb_lga.csv            # Australian suburb → LGA mapping (15,000+ localities)
 ```
 
 DuckDB schema layout:
@@ -92,20 +96,22 @@ dataset_a:
     middle_name:   MiddleName
     date_of_birth: DOB
     gender:        Sex
-    address_line1: StreetAddress
-    address_suburb: Suburb
-    address_state: State
-    postcode:      Postcode
+    address_full:           FullAddress  # optional — auto-parsed into components
+    address_street_number:  HouseNo      # optional — use if data is already split
+    address_street_name:    StreetName   # optional
+    address_town_or_suburb: Suburb       # optional
+    address_lga:            LGA          # optional — auto-populated from suburb
 
   optional_fields:
     # Fields where NULL contributes 0 weight (no penalty).
     # List all non-required fields that may be absent or sparse.
     - middle_name
     - gender
-    - address_line1
-    - address_suburb
-    - address_state
-    - postcode
+    - address_full
+    - address_street_number
+    - address_street_name
+    - address_town_or_suburb
+    - address_lga
 
 # ── Dataset B ─────────────────────────────────────────────────────────────────
 dataset_b:
@@ -123,14 +129,15 @@ dataset_b:
     last_name:  LastName
     date_of_birth: BirthDate
     gender: GenderCode
-    address_suburb: City
+    address_town_or_suburb: City
   optional_fields:
     - middle_name
     - gender
-    - address_line1
-    - address_suburb
-    - address_state
-    - postcode
+    - address_full
+    - address_street_number
+    - address_street_name
+    - address_town_or_suburb
+    - address_lga
 
 # ── Linkage behaviour ─────────────────────────────────────────────────────────
 linkage:
@@ -148,7 +155,9 @@ linkage:
 
   # Override default P(agree | same person) per field.
   # Defaults: first_name=0.90, last_name=0.92, date_of_birth=0.95,
-  #           gender=0.98, middle_name=0.85, address_suburb=0.82
+  #           gender=0.98, middle_name=0.85,
+  #           address_street_number=0.90, address_street_name=0.85,
+  #           address_town_or_suburb=0.80, address_lga=0.75
   # match_probabilities:
   #   first_name: 0.88
   #   last_name:  0.90
@@ -173,10 +182,11 @@ duckdb:
 | `middle_name` | No | Optional; often sparse |
 | `date_of_birth` | No | YYYYMMDD format (hyphens stripped, validated by regex) |
 | `gender` | No | Mapped to M / F / NULL |
-| `address_line1` | No | |
-| `address_suburb` | No | |
-| `address_state` | No | |
-| `postcode` | No | |
+| `address_full` | No | Free-text full address; auto-parsed into components if mapped |
+| `address_street_number` | No | e.g. "42", "5A", "12/34" — exact-match scored |
+| `address_street_name` | No | e.g. "HIGH STREET" — Jaro-Winkler fuzzy scored |
+| `address_town_or_suburb` | No | Suburb or town — Jaro-Winkler fuzzy scored; also used for LGA lookup |
+| `address_lga` | No | Local Government Area — auto-populated from suburb if absent; exact-match scored |
 
 ### Unique ID Strategies
 
@@ -247,11 +257,13 @@ Candidates written to `wrk.raw_candidates`, deduplicated → `wrk.candidate_pair
 
 Calculates a log-odds weight for each field, then sums to `total_weight`.
 
-**For string fields (first_name, last_name, middle_name, suburb):**
+**For string fields (first_name, last_name, middle_name):**
 - JW ≥ 0.92 (full match): `log₂(MP / UP)` — full agreement weight
-- JW ≥ 0.75 (partial match): interpolated between agree/disagree weight
+- JW ≥ 0.75 (partial match): linearly interpolated
 - Below 0.75: `log₂((1-MP) / (1-UP))` — disagreement weight
 - Either value NULL → 0.0
+
+UP values for name fields are taken as `LEAST(freq_in_A, freq_in_B)` from the combined population frequency tables.
 
 **For date of birth:**
 - Exact match: `log₂(MP / UP)`
@@ -264,7 +276,20 @@ Calculates a log-odds weight for each field, then sums to `total_weight`.
 - Both present but different: disagreement weight
 - Either NULL → 0.0
 
-UP values are taken as `LEAST(freq_in_A, freq_in_B)` — using the rarer side's frequency to reflect the source population.
+**For address fields (street_number, street_name, town_or_suburb, lga):**
+
+Address fields use fixed UP values (not population frequency tables, because address distributions are geographically local — a globally-observed suburb frequency would over-weight common names like "NORTH SYDNEY").
+
+| Field | Scoring method | UP | Match probability (default) |
+|-------|---------------|----|-----------------------------|
+| `address_street_number` | Exact match | 0.05 | 0.90 |
+| `address_street_name` | Jaro-Winkler fuzzy | 0.01 | 0.85 |
+| `address_town_or_suburb` | Jaro-Winkler fuzzy | 0.02 | 0.80 |
+| `address_lga` | Exact match | 0.10 | 0.75 |
+
+**Crucially, address mismatches always return 0.0 weight (not negative).** Address data quality is variable — people move, formatting varies, unit numbers conflict with street numbers — so disagreement is treated as "no evidence" rather than evidence against a match. Only agreement contributes to the total weight.
+
+**Address auto-parsing:** The `address_parser` module is run during ingest. If `address_full` is mapped but the component fields (`address_street_number`, `address_street_name`, `address_town_or_suburb`) are absent, it parses the free-text address using regex. `address_lga` is auto-populated from `address_town_or_suburb` via the bundled `data/suburb_lga.csv` lookup (15,000+ Australian localities from 2016 ABS Census data).
 
 ### Stage 5 — Post-Linkage (`stages/post_linkage.py`)
 
@@ -304,19 +329,26 @@ Results written to `out.linkage_results`.
 | `a_last_name` | VARCHAR | A record last name |
 | `a_dob` | VARCHAR | A record date of birth (YYYYMMDD) |
 | `a_gender` | VARCHAR | A record gender (M/F) |
-| `a_suburb` | VARCHAR | A record address suburb |
-| `a_state` | VARCHAR | A record address state |
-| `b_first_name` ... `b_state` | VARCHAR | B record equivalents |
+| `a_street_number` | VARCHAR | A record street number |
+| `a_street_name` | VARCHAR | A record street name |
+| `a_town_or_suburb` | VARCHAR | A record suburb or town |
+| `a_lga` | VARCHAR | A record Local Government Area |
+| `b_first_name` ... `b_lga` | VARCHAR | B record equivalents |
 | `sim_first_name` | DOUBLE | Jaro-Winkler similarity: first names (0–1) |
 | `sim_last_name` | DOUBLE | Jaro-Winkler similarity: last names |
 | `sim_middle_name` | DOUBLE | Jaro-Winkler similarity: middle names |
 | `sim_dob` | DOUBLE | Jaro-Winkler similarity: dates of birth |
+| `sim_street_name` | DOUBLE | Jaro-Winkler similarity: street names |
+| `sim_town_or_suburb` | DOUBLE | Jaro-Winkler similarity: suburb/town |
 | `wgt_first_name` | DOUBLE | Log-odds contribution: first name |
 | `wgt_middle_name` | DOUBLE | Log-odds contribution: middle name |
 | `wgt_last_name` | DOUBLE | Log-odds contribution: last name |
 | `wgt_dob` | DOUBLE | Log-odds contribution: date of birth |
 | `wgt_gender` | DOUBLE | Log-odds contribution: gender |
-| `wgt_suburb` | DOUBLE | Log-odds contribution: suburb |
+| `wgt_address_street_number` | DOUBLE | Log-odds contribution: street number |
+| `wgt_address_street_name` | DOUBLE | Log-odds contribution: street name |
+| `wgt_address_town_or_suburb` | DOUBLE | Log-odds contribution: suburb/town |
+| `wgt_address_lga` | DOUBLE | Log-odds contribution: LGA |
 
 ---
 

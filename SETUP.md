@@ -119,18 +119,22 @@ dataset_a:
     last_name:     Surname
     date_of_birth: DOB
     gender:        Sex
-    address_suburb: City     # optional — omit if not present
+    address_full:           FullAddress  # optional — auto-parsed into components
+    address_town_or_suburb: City         # optional
 
   optional_fields:           # NULL values in these fields won't penalise scores
     - middle_name
     - gender
-    - address_suburb
-    - address_line1
-    - address_state
-    - postcode
+    - address_full
+    - address_street_number
+    - address_street_name
+    - address_town_or_suburb
+    - address_lga
 ```
 
-Standard pipeline fields: `first_name`, `last_name`, `middle_name`, `date_of_birth`, `gender`, `address_line1`, `address_suburb`, `address_state`, `postcode`. Only `first_name` and `last_name` are required; all others should be listed in `optional_fields` if they may be sparse.
+Standard pipeline fields: `first_name`, `last_name`, `middle_name`, `date_of_birth`, `gender`, `address_full`, `address_street_number`, `address_street_name`, `address_town_or_suburb`, `address_lga`. Only `first_name` and `last_name` are required; all others should be listed in `optional_fields` if they may be sparse.
+
+**Address handling:** Map `address_full` if your data has a single combined address column — the pipeline will automatically parse it into street number, street name, and suburb. Map the component fields (`address_street_number`, `address_street_name`, `address_town_or_suburb`) directly if your data is already split. `address_lga` is automatically populated from the suburb name using a bundled Australian locality lookup (`data/suburb_lga.csv`, 15,000+ localities).
 
 ### Linkage settings
 
@@ -248,19 +252,26 @@ conn.close()
 | `a_last_name` | VARCHAR | A record last name |
 | `a_dob` | VARCHAR | A record date of birth (YYYYMMDD) |
 | `a_gender` | VARCHAR | A record gender (M/F) |
-| `a_suburb` | VARCHAR | A record address suburb |
-| `a_state` | VARCHAR | A record address state |
-| `b_first_name` ... `b_state` | VARCHAR | B record equivalents |
+| `a_street_number` | VARCHAR | A record street number |
+| `a_street_name` | VARCHAR | A record street name |
+| `a_town_or_suburb` | VARCHAR | A record suburb / town |
+| `a_lga` | VARCHAR | A record Local Government Area |
+| `b_first_name` ... `b_lga` | VARCHAR | B record equivalents |
 | `sim_first_name` | DOUBLE | Jaro-Winkler similarity for first name (0–1) |
 | `sim_last_name` | DOUBLE | Jaro-Winkler similarity for last name |
 | `sim_middle_name` | DOUBLE | Jaro-Winkler similarity for middle name |
 | `sim_dob` | DOUBLE | Jaro-Winkler similarity for date of birth |
-| `wgt_first_name` | DOUBLE | Log-odds weight from first name field |
-| `wgt_middle_name` | DOUBLE | Log-odds weight from middle name field |
-| `wgt_last_name` | DOUBLE | Log-odds weight from last name field |
-| `wgt_dob` | DOUBLE | Log-odds weight from date of birth field |
-| `wgt_gender` | DOUBLE | Log-odds weight from gender field |
-| `wgt_suburb` | DOUBLE | Log-odds weight from suburb field |
+| `sim_street_name` | DOUBLE | Jaro-Winkler similarity for street name |
+| `sim_town_or_suburb` | DOUBLE | Jaro-Winkler similarity for suburb/town |
+| `wgt_first_name` | DOUBLE | Log-odds weight from first name |
+| `wgt_middle_name` | DOUBLE | Log-odds weight from middle name |
+| `wgt_last_name` | DOUBLE | Log-odds weight from last name |
+| `wgt_dob` | DOUBLE | Log-odds weight from date of birth |
+| `wgt_gender` | DOUBLE | Log-odds weight from gender |
+| `wgt_address_street_number` | DOUBLE | Log-odds weight from street number |
+| `wgt_address_street_name` | DOUBLE | Log-odds weight from street name |
+| `wgt_address_town_or_suburb` | DOUBLE | Log-odds weight from suburb/town |
+| `wgt_address_lga` | DOUBLE | Log-odds weight from LGA |
 
 ## Troubleshooting
 

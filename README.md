@@ -95,7 +95,7 @@ dataset_a:
     last_name:  Surname
     date_of_birth: DOB
     gender: Sex
-  optional_fields: [middle_name, gender, address_suburb]
+  optional_fields: [middle_name, gender, address_town_or_suburb]
 
 dataset_b:
   source_type: excel
@@ -140,10 +140,14 @@ Results written to `out.linkage_results` in DuckDB and optionally exported to CS
 | `confidence` | HIGH / MEDIUM / LOW band label |
 | `match_rank` | Rank of this B match for the given A record (1 = best) |
 | `is_best_match` | TRUE if this is the top-ranked B match for this A record |
-| `a_first_name`, `a_last_name`, `a_dob`, `a_gender`, `a_suburb`, `a_state` | A record fields |
-| `b_first_name`, `b_last_name`, `b_dob`, `b_gender`, `b_suburb`, `b_state` | B record fields |
+| `a_first_name`, `a_last_name`, `a_dob`, `a_gender` | A record person fields |
+| `a_street_number`, `a_street_name`, `a_town_or_suburb`, `a_lga` | A record address fields |
+| `b_first_name`, `b_last_name`, `b_dob`, `b_gender` | B record person fields |
+| `b_street_number`, `b_street_name`, `b_town_or_suburb`, `b_lga` | B record address fields |
 | `sim_first_name`, `sim_last_name`, `sim_middle_name`, `sim_dob` | Jaro-Winkler similarity scores |
-| `wgt_first_name`, `wgt_last_name`, `wgt_dob`, `wgt_gender`, `wgt_suburb` | Field-level log-odds weights |
+| `sim_street_name`, `sim_town_or_suburb` | Jaro-Winkler similarity: address fields |
+| `wgt_first_name`, `wgt_last_name`, `wgt_dob`, `wgt_gender` | Field-level log-odds weights |
+| `wgt_address_street_number`, `wgt_address_street_name`, `wgt_address_town_or_suburb`, `wgt_address_lga` | Address field weights |
 
 ## Algorithms
 

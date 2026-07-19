@@ -42,8 +42,8 @@ dataset_a:
     middle_name:   MiddleName
     date_of_birth: DOB
     gender:        Sex
-    address_suburb: Suburb
-  optional_fields: [middle_name, gender, address_suburb]
+    address_town_or_suburb: Suburb
+  optional_fields: [middle_name, gender, address_town_or_suburb]
 
 dataset_b:
   source_type: csv
@@ -58,7 +58,7 @@ dataset_b:
     last_name:     LastName
     date_of_birth: BirthDate
     gender:        GenderCode
-  optional_fields: [middle_name, gender, address_suburb]
+  optional_fields: [middle_name, gender, address_town_or_suburb]
 
 linkage:
   thresholds:
