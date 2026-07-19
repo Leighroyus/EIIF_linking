@@ -667,9 +667,20 @@ with tab_version:
 
     _repo_root = Path(__file__).resolve().parents[3]
     try:
+        # Fetch latest from origin so the log reflects what's actually on GitHub.
+        _fetch = subprocess.run(
+            ["git", "fetch", "origin"],
+            cwd=_repo_root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        _fetch_ok = _fetch.returncode == 0
+
+        # Log only commits on origin/main (remote-pushed commits).
         _result = subprocess.run(
             [
-                "git", "log",
+                "git", "log", "origin/main",
                 "--pretty=format:%h|%cd|%s",
                 "--date=format:%Y-%m-%d %H:%M:%S",
             ],
@@ -679,7 +690,7 @@ with tab_version:
             timeout=5,
         )
         if _result.returncode != 0 or not _result.stdout.strip():
-            st.warning("No git history found.")
+            st.warning("No remote git history found.")
         else:
             _rows = []
             for _line in _result.stdout.strip().splitlines():
@@ -695,6 +706,8 @@ with tab_version:
                 _current = _rows[0]
                 st.markdown(f"**Current version:** `{_current['Version']}`")
                 st.caption(f"Commit {_current['Commit']} — {_current['Description']}")
+                if not _fetch_ok:
+                    st.warning("Could not reach GitHub — showing last known remote state.")
                 st.divider()
                 st.dataframe(
                     pd.DataFrame(_rows),
