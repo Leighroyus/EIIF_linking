@@ -33,6 +33,7 @@ def run(conn: duckdb.DuckDBPyConnection, config: LinkageConfig) -> None:
     total_min = thresholds.total_weight_min
     conf_high = thresholds.confidence_high
     conf_med = thresholds.confidence_medium
+    conf_low = thresholds.confidence_low
     max_matches = thresholds.max_matches_per_a_record
 
     qualify_clause = (
@@ -73,6 +74,7 @@ def run(conn: duckdb.DuckDBPyConnection, config: LinkageConfig) -> None:
                 CASE
                     WHEN sp.total_weight >= {conf_high} THEN 'HIGH'
                     WHEN sp.total_weight >= {conf_med}  THEN 'MEDIUM'
+                    WHEN sp.total_weight >= {conf_low}  THEN 'LOW'
                     ELSE 'LOW'
                 END AS confidence,
                 ROW_NUMBER() OVER (

@@ -48,7 +48,7 @@ from eiif_linking.config import (
 from eiif_linking.connectors.csv_connector import CsvConnector
 from eiif_linking.connectors.excel_connector import ExcelConnector
 from eiif_linking.pipeline import run_pipeline_from_dataframes
-from eiif_linking.schema import STANDARD_FIELDS, CONFIDENCE_HIGH_THRESHOLD, CONFIDENCE_MEDIUM_THRESHOLD
+from eiif_linking.schema import STANDARD_FIELDS, CONFIDENCE_HIGH_THRESHOLD, CONFIDENCE_LOW_THRESHOLD, CONFIDENCE_MEDIUM_THRESHOLD
 
 # ---------------------------------------------------------------------------
 # Session-state defaults
@@ -74,9 +74,10 @@ _DEFAULTS: dict[str, Any] = {
     "b_uid_hash_cols": [],
     "b_df_mapped": None,
     "b_df_normalised": None,
-    "total_weight_min": CONFIDENCE_MEDIUM_THRESHOLD,
+    "total_weight_min": CONFIDENCE_LOW_THRESHOLD,
     "confidence_high": CONFIDENCE_HIGH_THRESHOLD,
     "confidence_medium": CONFIDENCE_MEDIUM_THRESHOLD,
+    "confidence_low": CONFIDENCE_LOW_THRESHOLD,
     "jw_fn_min": 0.75,
     "jw_ln_min": 0.75,
     "max_matches": 0,  # 0 = all above threshold
@@ -336,7 +337,7 @@ with tab_settings:
             min_value=0.0, max_value=60.0,
             value=float(st.session_state["total_weight_min"]),
             step=1.0,
-            help="Higher = stricter. Typical range: 15 (loose) to 35 (strict).",
+            help="Absolute floor — pairs below this are excluded from results entirely.",
         )
         st.session_state["confidence_high"] = st.slider(
             "HIGH confidence threshold",
@@ -348,6 +349,12 @@ with tab_settings:
             "MEDIUM confidence threshold",
             min_value=0.0, max_value=60.0,
             value=float(st.session_state["confidence_medium"]),
+            step=1.0,
+        )
+        st.session_state["confidence_low"] = st.slider(
+            "LOW confidence threshold",
+            min_value=0.0, max_value=60.0,
+            value=float(st.session_state["confidence_low"]),
             step=1.0,
         )
     with c2:
@@ -430,6 +437,7 @@ with tab_run:
                                 total_weight_min=st.session_state["total_weight_min"],
                                 confidence_high=st.session_state["confidence_high"],
                                 confidence_medium=st.session_state["confidence_medium"],
+                                confidence_low=st.session_state["confidence_low"],
                                 jw_first_name_min=st.session_state["jw_fn_min"],
                                 jw_last_name_min=st.session_state["jw_ln_min"],
                                 max_matches_per_a_record=max_m if max_m > 0 else None,

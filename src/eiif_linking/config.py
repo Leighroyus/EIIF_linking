@@ -8,6 +8,7 @@ import yaml
 
 from .schema import (
     CONFIDENCE_HIGH_THRESHOLD,
+    CONFIDENCE_LOW_THRESHOLD,
     CONFIDENCE_MEDIUM_THRESHOLD,
     DEFAULT_MATCH_PROBS,
     JW_PARTIAL_MATCH,
@@ -44,9 +45,10 @@ class DatasetConfig:
 
 @dataclass
 class ThresholdConfig:
-    total_weight_min: float = CONFIDENCE_MEDIUM_THRESHOLD
+    total_weight_min: float = CONFIDENCE_LOW_THRESHOLD
     confidence_high: float = CONFIDENCE_HIGH_THRESHOLD
     confidence_medium: float = CONFIDENCE_MEDIUM_THRESHOLD
+    confidence_low: float = CONFIDENCE_LOW_THRESHOLD
     jw_first_name_min: float = JW_PARTIAL_MATCH
     jw_last_name_min: float = JW_PARTIAL_MATCH
     max_matches_per_a_record: int | None = None  # None = all above threshold
@@ -146,9 +148,10 @@ def load_config(config_path: str | Path) -> AppConfig:
     linkage_raw = raw.get("linkage", {})
     thresholds_raw = linkage_raw.get("thresholds", {})
     thresholds = ThresholdConfig(
-        total_weight_min=thresholds_raw.get("total_weight_min", CONFIDENCE_MEDIUM_THRESHOLD),
+        total_weight_min=thresholds_raw.get("total_weight_min", CONFIDENCE_LOW_THRESHOLD),
         confidence_high=thresholds_raw.get("confidence_high", CONFIDENCE_HIGH_THRESHOLD),
         confidence_medium=thresholds_raw.get("confidence_medium", CONFIDENCE_MEDIUM_THRESHOLD),
+        confidence_low=thresholds_raw.get("confidence_low", CONFIDENCE_LOW_THRESHOLD),
         jw_first_name_min=thresholds_raw.get("jw_first_name_min", JW_PARTIAL_MATCH),
         jw_last_name_min=thresholds_raw.get("jw_last_name_min", JW_PARTIAL_MATCH),
         max_matches_per_a_record=thresholds_raw.get("max_matches_per_a_record"),

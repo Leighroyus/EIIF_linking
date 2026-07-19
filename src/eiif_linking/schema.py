@@ -57,3 +57,4 @@ DEFAULT_MATCH_PROBS: dict[str, float] = {
 # Confidence band boundaries (applied to total_weight in results).
 CONFIDENCE_HIGH_THRESHOLD: float = 30.0
 CONFIDENCE_MEDIUM_THRESHOLD: float = 20.0
+CONFIDENCE_LOW_THRESHOLD: float = 15.0
