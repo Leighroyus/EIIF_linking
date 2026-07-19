@@ -6,6 +6,7 @@ Run with:  streamlit run src/eiif_linking/app/main.py
 """
 
 import io
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -315,8 +316,8 @@ st.caption(
     "date-of-birth, and address matching."
 )
 
-tab_a, tab_b, tab_settings, tab_run = st.tabs(
-    ["Dataset A", "Dataset B", "Linkage Settings", "Run & Results"]
+tab_a, tab_b, tab_settings, tab_run, tab_version = st.tabs(
+    ["Dataset A", "Dataset B", "Linkage Settings", "Run & Results", "Version History"]
 )
 
 with tab_a:
@@ -660,3 +661,45 @@ with tab_run:
 
     elif results_df is not None and len(results_df) == 0:
         st.info("No matches found above the configured thresholds. Try lowering the minimum weight.")
+
+with tab_version:
+    st.subheader("Version History")
+
+    _repo_root = Path(__file__).resolve().parents[3]
+    try:
+        _result = subprocess.run(
+            [
+                "git", "log",
+                "--pretty=format:%h|%cd|%s",
+                "--date=format:%Y-%m-%d %H:%M:%S",
+            ],
+            cwd=_repo_root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if _result.returncode != 0 or not _result.stdout.strip():
+            st.warning("No git history found.")
+        else:
+            _rows = []
+            for _line in _result.stdout.strip().splitlines():
+                _parts = _line.split("|", 2)
+                if len(_parts) == 3:
+                    _rows.append({
+                        "Version": _parts[1],
+                        "Commit": _parts[0],
+                        "Description": _parts[2],
+                    })
+
+            if _rows:
+                _current = _rows[0]
+                st.markdown(f"**Current version:** `{_current['Version']}`")
+                st.caption(f"Commit {_current['Commit']} — {_current['Description']}")
+                st.divider()
+                st.dataframe(
+                    pd.DataFrame(_rows),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+    except Exception as _exc:
+        st.error(f"Could not read version information: {_exc}")
