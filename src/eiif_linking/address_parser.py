@@ -164,6 +164,10 @@ def enrich_address_df(df: pd.DataFrame) -> pd.DataFrame:
     ):
         if col not in df.columns:
             df[col] = None
+        # DuckDB returns all-NULL columns as nullable integer (Int64).
+        # Cast to object so string values can be assigned without a coercion error.
+        if not pd.api.types.is_object_dtype(df[col]):
+            df[col] = df[col].astype(object)
 
     # Parse address_full where street_name is missing and address_full is present
     has_full = df["address_full"].notna() & (df["address_full"].astype(str).str.strip() != "")
