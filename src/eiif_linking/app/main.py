@@ -199,6 +199,20 @@ def _render_dataset_tab(prefix: str, label: str) -> None:
         "Fields marked **required** must be mapped."
     )
 
+    # When address_full is set (or changes to a new value), auto-clear the four
+    # address component fields so they default to unmapped.  The user can still
+    # individually override any component field afterwards.
+    _ADDR_COMPONENTS = [
+        "address_street_number", "address_street_name",
+        "address_town_or_suburb", "address_lga",
+    ]
+    _cur_full = st.session_state.get(f"{prefix}_map_address_full", _NOT_AVAILABLE)
+    _prev_full = st.session_state.get(f"{prefix}_addr_full_prev", _NOT_AVAILABLE)
+    if _cur_full != _NOT_AVAILABLE and _cur_full != _prev_full:
+        for _comp in _ADDR_COMPONENTS:
+            st.session_state[f"{prefix}_map_{_comp}"] = _NOT_AVAILABLE
+    st.session_state[f"{prefix}_addr_full_prev"] = _cur_full
+
     mapping: dict[str, str] = {}
     optional_fields: list[str] = []
 
@@ -230,6 +244,15 @@ def _render_dataset_tab(prefix: str, label: str) -> None:
                 key=f"{prefix}_map_{std_field}",
                 label_visibility="collapsed",
             )
+
+        # After the address_full row: hint that components will be auto-parsed,
+        # and that the user can still map them individually to override.
+        if std_field == "address_full" and selected != _NOT_AVAILABLE:
+            st.caption(
+                "↳ Street number, name, suburb, and LGA will be auto-parsed from this field. "
+                "Map any component field below to override the parsed value."
+            )
+
         if selected != _NOT_AVAILABLE:
             mapping[std_field] = selected
         elif not is_required:
