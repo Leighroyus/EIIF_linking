@@ -98,20 +98,23 @@ _DISPLAY_NAMES = {
     "last_name": "Last Name",
     "date_of_birth": "Date of Birth",
     "gender": "Gender",
-    "address_line1": "Address Line 1",
-    "address_suburb": "Suburb / City",
-    "address_state": "State",
-    "postcode": "Postcode",
+    "address_full": "Full Address (auto-parsed)",
+    "address_street_number": "Street Number",
+    "address_street_name": "Street Name",
+    "address_town_or_suburb": "Town / Suburb",
+    "address_lga": "LGA (Local Government Area)",
 }
 _REQUIRED = {"first_name", "last_name"}  # id handled separately via uid config
 
 # Columns stripped from exports when the user ticks "Omit PII columns".
-# Uses a superset of names across all view modes so drop() is safe regardless.
+# Covers all view modes (matched pairs view and All Set A/B views use different prefixed names).
 _PII_COLS = frozenset({
+    # Person fields — both sides
     "a_first_name", "a_middle_name", "a_last_name", "a_dob", "a_gender",
-    "a_address_line1", "a_suburb", "a_state", "a_address_state", "a_postcode",
     "b_first_name", "b_middle_name", "b_last_name", "b_dob", "b_gender",
-    "b_address_line1", "b_suburb", "b_state", "b_address_state", "b_postcode",
+    # Address fields — All Set A/B views
+    "a_address_full", "a_street_number", "a_street_name", "a_town_or_suburb", "a_lga",
+    "b_address_full", "b_street_number", "b_street_name", "b_town_or_suburb", "b_lga",
 })
 
 
@@ -521,7 +524,7 @@ with tab_run:
                 _a_match_cols = [c for c in [
                     "a_id", "b_id", "total_weight", "confidence", "match_rank",
                     "b_first_name", "b_middle_name", "b_last_name",
-                    "b_dob", "b_gender", "b_suburb",
+                    "b_dob", "b_gender", "b_town_or_suburb", "b_street_name",
                 ] if c in results_df.columns]
                 best = results_df[results_df["is_best_match"]][_a_match_cols].copy()
 
@@ -535,10 +538,11 @@ with tab_run:
                         "last_name": "a_last_name",
                         "date_of_birth": "a_dob",
                         "gender": "a_gender",
-                        "address_line1": "a_address_line1",
-                        "address_suburb": "a_suburb",
-                        "address_state": "a_address_state",
-                        "postcode": "a_postcode",
+                        "address_full": "a_address_full",
+                        "address_street_number": "a_street_number",
+                        "address_street_name": "a_street_name",
+                        "address_town_or_suburb": "a_town_or_suburb",
+                        "address_lga": "a_lga",
                     })
                 )
                 display_df = a_view.merge(best, on="a_id", how="left")
@@ -559,7 +563,7 @@ with tab_run:
                 _b_match_cols = [c for c in [
                     "b_id", "a_id", "total_weight", "confidence",
                     "a_first_name", "a_middle_name", "a_last_name",
-                    "a_dob", "a_gender", "a_suburb",
+                    "a_dob", "a_gender", "a_town_or_suburb", "a_street_name",
                 ] if c in results_df.columns]
                 best = (
                     results_df
@@ -579,10 +583,11 @@ with tab_run:
                         "last_name": "b_last_name",
                         "date_of_birth": "b_dob",
                         "gender": "b_gender",
-                        "address_line1": "b_address_line1",
-                        "address_suburb": "b_suburb",
-                        "address_state": "b_address_state",
-                        "postcode": "b_postcode",
+                        "address_full": "b_address_full",
+                        "address_street_number": "b_street_number",
+                        "address_street_name": "b_street_name",
+                        "address_town_or_suburb": "b_town_or_suburb",
+                        "address_lga": "b_lga",
                     })
                 )
                 display_df = b_view.merge(best, on="b_id", how="left")

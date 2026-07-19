@@ -8,9 +8,7 @@ from ..config import DatasetConfig, UniqueIdConfig
 def _id_expression(uid: UniqueIdConfig) -> str:
     """Return a SQL expression that produces the unique record ID."""
     if uid.strategy == "named_field":
-        # id column already renamed in the connector; just cast to string
         return "CAST(id AS VARCHAR)"
-    # hash strategy: build id from standard field values
     cols = uid.hash_columns or []
     if not cols:
         raise ValueError("hash strategy requires at least one hash_column (standard field name)")
@@ -51,20 +49,28 @@ def normalise_table(
     uid: UniqueIdConfig,
 ) -> None:
     """Normalise raw staged data into a clean lnk table with standard schema."""
+    # Pull staged data, enrich address fields, write back before SQL normalisation.
+    from ..address_parser import enrich_address_df
+    df = conn.execute(f"SELECT * FROM {raw_table}").df()
+    df = enrich_address_df(df)
+    conn.register("_staged_enriched", df)
+    conn.execute(f"CREATE OR REPLACE TABLE {raw_table} AS SELECT * FROM _staged_enriched")
+
     id_expr = _id_expression(uid)
     conn.execute(f"""
         CREATE OR REPLACE TABLE {out_table} AS
         SELECT
-            {id_expr}                               AS id,
-            {_NAME_EXPR.format(col='first_name')}   AS first_name,
-            {_NAME_EXPR.format(col='middle_name')}  AS middle_name,
-            {_NAME_EXPR.format(col='last_name')}    AS last_name,
-            {_DOB_EXPR.format(col='date_of_birth')} AS date_of_birth,
-            {_GENDER_EXPR.format(col='gender')}     AS gender,
-            {_ADDR_EXPR.format(col='address_line1')} AS address_line1,
-            {_ADDR_EXPR.format(col='address_suburb')} AS address_suburb,
-            {_ADDR_EXPR.format(col='address_state')} AS address_state,
-            NULLIF(TRIM(COALESCE(CAST(postcode AS VARCHAR), '')), '') AS postcode
+            {id_expr}                                           AS id,
+            {_NAME_EXPR.format(col='first_name')}               AS first_name,
+            {_NAME_EXPR.format(col='middle_name')}              AS middle_name,
+            {_NAME_EXPR.format(col='last_name')}                AS last_name,
+            {_DOB_EXPR.format(col='date_of_birth')}             AS date_of_birth,
+            {_GENDER_EXPR.format(col='gender')}                 AS gender,
+            {_ADDR_EXPR.format(col='address_full')}             AS address_full,
+            {_ADDR_EXPR.format(col='address_street_number')}    AS address_street_number,
+            {_ADDR_EXPR.format(col='address_street_name')}      AS address_street_name,
+            {_ADDR_EXPR.format(col='address_town_or_suburb')}   AS address_town_or_suburb,
+            {_ADDR_EXPR.format(col='address_lga')}              AS address_lga
         FROM {raw_table}
         WHERE {id_expr} IS NOT NULL
           AND {id_expr} != ''
