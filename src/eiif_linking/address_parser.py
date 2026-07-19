@@ -68,9 +68,11 @@ def lookup_lga(suburb: Optional[str], state: Optional[str] = None) -> Optional[s
 # Address string parser
 # ---------------------------------------------------------------------------
 
-_RE_POSTCODE = re.compile(r'\s+\d{4}\s*$')
-_RE_STATE = re.compile(
-    r'\s+(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s*$', re.IGNORECASE
+# Match trailing postcode/state separated by comma or whitespace (any order).
+# Two-pass stripping in _strip_trailing_state_postcode handles both orderings.
+_RE_TRAILING_POSTCODE = re.compile(r'[,\s]+\d{4}\s*$')
+_RE_TRAILING_STATE = re.compile(
+    r'[,\s]+(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s*$', re.IGNORECASE
 )
 # Matches an optional unit/lot prefix then a street number then street name.
 # Handles: "123 Smith St", "Unit 4/56 Main Rd", "5/123 High St",
@@ -86,10 +88,36 @@ _RE_STREET = re.compile(
 )
 
 
-def _strip_postcode_state(raw: str) -> Optional[str]:
-    s = _RE_POSTCODE.sub('', raw).strip()
-    s = _RE_STATE.sub('', s).strip()
-    return s.upper() if s else None
+def _strip_trailing_state_postcode(addr: str) -> str:
+    """Strip trailing postcode and/or state from a full address string.
+
+    Two passes handle either ordering (e.g. 'NSW 2000' or '2000 NSW') and
+    comma-separated components (e.g. 'Springfield, NSW, 2000').
+    """
+    for _ in range(2):
+        addr = _RE_TRAILING_POSTCODE.sub('', addr).strip()
+        addr = _RE_TRAILING_STATE.sub('', addr).strip()
+    return addr
+
+
+def _find_suburb_suffix(text: str) -> tuple[Optional[str], Optional[str]]:
+    """Identify a suburb at the end of `text` via the bundled LGA lookup.
+
+    Tries trailing word groups of 1–4 words (longest first so multi-word
+    suburbs like ALICE SPRINGS are matched before single words). Always
+    leaves at least one word remaining for the street component.
+
+    Returns (street_part, suburb) where suburb is None if no match found.
+    """
+    _ensure_lga_loaded()
+    if not _lga_by_suburb:
+        return text, None
+    words = text.split()
+    for n in range(min(4, len(words) - 1), 0, -1):
+        candidate = ' '.join(words[-n:])
+        if candidate in _lga_by_suburb:
+            return ' '.join(words[:-n]), candidate
+    return text, None
 
 
 def parse_address_full(address: str) -> dict[str, Optional[str]]:
@@ -108,38 +136,41 @@ def parse_address_full(address: str) -> dict[str, Optional[str]]:
     if not address or not str(address).strip():
         return result
 
-    addr = str(address).strip()
+    addr = str(address).strip().upper()
 
-    # Split on commas — last meaningful part is usually the suburb/town
+    # Strip trailing postcode and state *before* splitting on commas so that
+    # formats like "Springfield, NSW 2000" and "Springfield, NSW, 2000" both
+    # leave "Springfield" as the last comma-separated part.
+    addr = _strip_trailing_state_postcode(addr)
+
     parts = [p.strip() for p in addr.split(',') if p.strip()]
 
     if len(parts) >= 2:
         street_raw = parts[0]
-        town_raw = parts[-1]
+        town: Optional[str] = parts[-1] or None
     else:
-        # No comma: strip postcode/state and take the last word group as town
-        stripped = _RE_POSTCODE.sub('', addr)
-        stripped = _RE_STATE.sub('', stripped).strip()
-        tokens = stripped.split()
-        if len(tokens) >= 3:
-            street_raw = ' '.join(tokens[:-1])
-            town_raw = tokens[-1]
-        else:
-            street_raw = stripped
-            town_raw = ''
+        # No comma: try to identify suburb from the LGA lookup first (handles
+        # multi-word suburb names), then fall back to the last single word.
+        street_raw, town = _find_suburb_suffix(addr)
+        if town is None:
+            tokens = addr.split()
+            if len(tokens) >= 3:
+                street_raw = ' '.join(tokens[:-1])
+                town = tokens[-1]
+            else:
+                street_raw = addr
 
-    town = _strip_postcode_state(town_raw) if town_raw else None
     if town:
-        result["address_town_or_suburb"] = town
+        result["address_town_or_suburb"] = town.strip() or None
 
-    m = _RE_STREET.match(street_raw.strip())
-    if m:
-        result["address_street_number"] = m.group(1).upper()
-        result["address_street_name"] = m.group(2).upper().strip() or None
-    else:
-        # No number found — treat whole string as street name
-        cleaned = street_raw.upper().strip()
-        result["address_street_name"] = cleaned or None
+    if street_raw:
+        m = _RE_STREET.match(street_raw.strip())
+        if m:
+            result["address_street_number"] = m.group(1).upper()
+            result["address_street_name"] = m.group(2).upper().strip() or None
+        else:
+            cleaned = street_raw.upper().strip()
+            result["address_street_name"] = cleaned or None
 
     return result
 
