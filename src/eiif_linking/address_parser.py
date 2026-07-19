@@ -81,9 +81,9 @@ _RE_STREET = re.compile(
     r'^'
     r'(?:(?:UNIT|APT|FLAT|SUITE|LEVEL|SHOP|U)\s+[\w/-]+[\s,/]+)?'
     r'(?:(?:LOT|RSD|RMB)\s+[\w/-]+\s+)?'
-    r'(\d+\w*(?:[/-]\d+\w*)?)'  # street number group
+    r'(\d+\w*(?:[/\-]\d+\w*)*)'  # street number: 123, 56-60, 13/56, 13/56-60
     r'\s+'
-    r'(.+)',                     # street name group
+    r'(.+)',                      # street name group
     re.IGNORECASE,
 )
 
